@@ -93,6 +93,20 @@ final class CausticaConfigTest {
     }
 
     @Test
+    void frameGenerationMultiplierStaysWithinTheDirectNgxLimit() {
+        CausticaConfig.IntSetting setting = CausticaConfig.Rt.Fg.MULTI_FRAME_COUNT;
+        int previous = setting.value();
+        try {
+            setting.set(0);
+            assertEquals(1, setting.value());
+            setting.set(4);
+            assertEquals(3, setting.value());
+        } finally {
+            setting.set(previous);
+        }
+    }
+
+    @Test
     void paperWhiteCannotExceedTheSelectedPeak() {
         var paperWhite = CausticaConfig.Rt.Hdr.PAPER_WHITE_NITS;
         var peak = CausticaConfig.Rt.Hdr.PEAK_NITS;

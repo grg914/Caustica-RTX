@@ -105,7 +105,8 @@ public final class NgxLibrary {
 				FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
 						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
 		// int ngxshim_evaluate_dlssg(cmd, feature, [backbuffer/depth/mvec/hudless/ui/outInterp/outReal: view,img,fmt]*7,
-		//   w,h, mvecDepthW, mvecDepthH, mfCount, mfIndex, mvScaleX, mvScaleY, depthInv, hdr, camMotion, reset, 4 matrices)
+		//   w,h, mvecDepthW, mvecDepthH, mfCount, mfIndex, backbufferFrameId, mvScaleX, mvScaleY,
+		//   depthInv, hdr, camMotion, reset, 4 matrices)
 		this.evaluateDlssg = optionalHandle(lookup, "ngxshim_evaluate_dlssg",
 				FunctionDescriptor.of(ValueLayout.JAVA_INT,
 						ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
@@ -118,6 +119,7 @@ public final class NgxLibrary {
 						ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
 						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
 						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_LONG,
 						ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
 						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
 						ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
@@ -329,6 +331,7 @@ public final class NgxLibrary {
 	                         long outputRealView, long outputRealImage, int outputRealFormat,
 	                         int width, int height, int mvecDepthWidth, int mvecDepthHeight,
 	                         int multiFrameCount, int multiFrameIndex,
+	                         long backbufferFrameId,
 	                         float mvecScaleX, float mvecScaleY,
 	                         int depthInverted, int colorBuffersHDR, int cameraMotionIncluded, int reset,
 	                         MemorySegment cameraViewToClip, MemorySegment clipToCameraView,
@@ -343,7 +346,7 @@ public final class NgxLibrary {
 					outputInterpView, outputInterpImage, outputInterpFormat,
 					outputRealView, outputRealImage, outputRealFormat,
 					width, height, mvecDepthWidth, mvecDepthHeight,
-					multiFrameCount, multiFrameIndex, mvecScaleX, mvecScaleY,
+					multiFrameCount, multiFrameIndex, backbufferFrameId, mvecScaleX, mvecScaleY,
 					depthInverted, colorBuffersHDR, cameraMotionIncluded, reset,
 					cameraViewToClip, clipToCameraView, clipToPrevClip, prevClipToClip);
 		} catch (Throwable t) {

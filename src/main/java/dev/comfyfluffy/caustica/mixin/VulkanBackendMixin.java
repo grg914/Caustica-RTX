@@ -166,6 +166,7 @@ public abstract class VulkanBackendMixin {
 			VulkanPhysicalDevice physicalDevice, Set<VulkanFeature> features,
 			CallbackInfoReturnable<VkDevice> cir, @Local VkDeviceCreateInfo deviceCreateInfo) {
 		RtDeviceBringup.reserveComputeQueue(deviceCreateInfo, physicalDevice, MemoryStack.stackGet());
+		RtDeviceBringup.reserveFrameQueues(deviceCreateInfo, physicalDevice, MemoryStack.stackGet());
 		VulkanDiagnostics.attachNvDiagnosticsConfig(deviceCreateInfo, MemoryStack.stackGet());
 	}
 }

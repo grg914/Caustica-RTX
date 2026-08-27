@@ -58,6 +58,8 @@ public final class RtContext {
     private final long vma;
     private final VulkanQueue graphicsQueue;
     private final VulkanQueue computeQueue;
+    private final VulkanQueue frameQueue;
+    private final VulkanQueue presentQueue;
     /** Serializes device-wide host waits against submissions from the Caustica compute thread. */
     private final Object deviceQueueHostLock = new Object();
     private final RtGpuExecutor gpuExecutor;
@@ -68,17 +70,24 @@ public final class RtContext {
     private final int accelerationStructureScratchAlignment;
     private final int maxPushConstantsSize;
     private final long updateAfterBindCombinedImageSamplerLimit;
+    private final float timestampPeriodNanos;
     private long commandPool;
 
     private RtContext(VulkanDevice device, long vma, int handleSize, int baseAlign, int handleAlign,
                       int maxSbtStride, int scratchAlign, int maxPushConstantsSize,
-                      long updateAfterBindCombinedImageSamplerLimit) {
+                      long updateAfterBindCombinedImageSamplerLimit, float timestampPeriodNanos) {
         this.device = device;
         this.vk = device.vkDevice();
         this.vma = vma;
         this.graphicsQueue = device.graphicsQueue();
         this.computeQueue = new VulkanQueue(device, RtDeviceBringup.computeQueueFamilyIndex(),
                 RtDeviceBringup.computeQueueIndex());
+        this.frameQueue = RtDeviceBringup.frameQueuesReserved()
+                ? new VulkanQueue(device, RtDeviceBringup.frameQueueFamilyIndex(), RtDeviceBringup.frameQueueIndex())
+                : null;
+        this.presentQueue = RtDeviceBringup.frameQueuesReserved()
+                ? new VulkanQueue(device, RtDeviceBringup.frameQueueFamilyIndex(), RtDeviceBringup.presentQueueIndex())
+                : null;
         this.shaderGroupHandleSize = handleSize;
         this.shaderGroupBaseAlignment = baseAlign;
         this.shaderGroupHandleAlignment = handleAlign;
@@ -86,6 +95,7 @@ public final class RtContext {
         this.accelerationStructureScratchAlignment = scratchAlign;
         this.maxPushConstantsSize = maxPushConstantsSize;
         this.updateAfterBindCombinedImageSamplerLimit = updateAfterBindCombinedImageSamplerLimit;
+        this.timestampPeriodNanos = timestampPeriodNanos;
         this.gpuExecutor = new RtGpuExecutor(this);
     }
 
@@ -170,7 +180,7 @@ public final class RtContext {
             return new RtContext(device, pVma.get(0), rtProps.shaderGroupHandleSize(), rtProps.shaderGroupBaseAlignment(),
                     rtProps.shaderGroupHandleAlignment(), rtProps.maxShaderGroupStride(),
                     asProps.minAccelerationStructureScratchOffsetAlignment(), limits.maxPushConstantsSize(),
-                    combinedImageSamplerLimit);
+                    combinedImageSamplerLimit, limits.timestampPeriod());
         }
     }
 
@@ -202,6 +212,20 @@ public final class RtContext {
         return computeQueue;
     }
 
+    VulkanQueue frameQueue() {
+        if (frameQueue == null) {
+            throw new IllegalStateException("Caustica frame queues were not reserved");
+        }
+        return frameQueue;
+    }
+
+    VulkanQueue presentQueue() {
+        if (presentQueue == null) {
+            throw new IllegalStateException("Caustica frame queues were not reserved");
+        }
+        return presentQueue;
+    }
+
     Object deviceQueueHostLock() {
         return deviceQueueHostLock;
     }
@@ -230,6 +254,10 @@ public final class RtContext {
     /** Conservative combined-image-sampler limit for a descriptor set using update-after-bind. */
     public long updateAfterBindCombinedImageSamplerLimit() {
         return updateAfterBindCombinedImageSamplerLimit;
+    }
+
+    public float timestampPeriodNanos() {
+        return timestampPeriodNanos;
     }
 
     public int accelerationStructureScratchAlignment() {

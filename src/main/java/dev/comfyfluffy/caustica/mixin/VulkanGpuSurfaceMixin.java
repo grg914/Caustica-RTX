@@ -323,6 +323,7 @@ public abstract class VulkanGpuSurfaceMixin {
 			at = @At(value = "INVOKE",
 					target = "Lorg/lwjgl/vulkan/KHRSwapchain;vkQueuePresentKHR(Lorg/lwjgl/vulkan/VkQueue;Lorg/lwjgl/vulkan/VkPresentInfoKHR;)I"))
 	private int caustica$presentWithReflex(VkQueue queue, VkPresentInfoKHR presentInfo) {
+		queue = RtFramePresenter.INSTANCE.consumeRealPresentQueue(queue);
 		boolean reflexActive = RtReflex.enabled() && this.swapchain == RtReflex.INSTANCE.appliedSwapchain();
 		if (!reflexActive) {
 			return KHRSwapchain.vkQueuePresentKHR(queue, presentInfo);
@@ -427,7 +428,6 @@ public abstract class VulkanGpuSurfaceMixin {
 			return;
 		}
 		long srcImage = textureView.texture() instanceof com.mojang.blaze3d.vulkan.VulkanGpuTexture t ? t.vkImage() : 0L;
-		long srcView = caustica$vkImageView(textureView);
 		if (srcImage == 0L) {
 			return;
 		}
@@ -437,7 +437,7 @@ public abstract class VulkanGpuSurfaceMixin {
 		RtFramePresenter.INSTANCE.prepareExtraFrames((VulkanCommandEncoder) commandEncoder, this.device,
 				this.swapchain, this.swapchainImages, this.presentSemaphores,
 				this.swapchainWidth, this.swapchainHeight,
-				srcView, srcImage, textureView.getWidth(0), textureView.getHeight(0), generatedCount, false);
+				srcImage, textureView.getWidth(0), textureView.getHeight(0), generatedCount, false);
 	}
 
 	/**
@@ -452,7 +452,6 @@ public abstract class VulkanGpuSurfaceMixin {
 		if (this.currentImageIndex < 0 || !RtFramePresenter.INSTANCE.isActive()) {
 			return;
 		}
-		long hdrView = rt.hdrBackbufferView();
 		long hdrImage = rt.hdrBackbufferImage();
 		if (hdrImage == 0L) {
 			return;
@@ -462,14 +461,14 @@ public abstract class VulkanGpuSurfaceMixin {
 				this.caustica$fgPresentCapacity);
 		RtFramePresenter.INSTANCE.prepareExtraFrames(enc, this.device, this.swapchain, this.swapchainImages,
 				this.presentSemaphores, this.swapchainWidth, this.swapchainHeight,
-				hdrView, hdrImage, this.swapchainWidth, this.swapchainHeight, generatedCount, true);
+				hdrImage, this.swapchainWidth, this.swapchainHeight, generatedCount, true);
 	}
 
-	// Present the FG-generated frame(s) acquired/recorded at blitFromTexture TAIL — at present() HEAD, after
-	// Minecraft.java's encoder.submit() has flushed (so our present semaphores are signaled) and before MC
+	// Submit and present the FG-generated frame(s) acquired/recorded at blitFromTexture TAIL. This runs at
+	// present() HEAD, after Minecraft.java's encoder.submit() has queued the input snapshot and before MC
 	// presents the real frame, giving display order generated-then-real.
 	@Inject(method = "present", at = @At("HEAD"))
 	private void caustica$flushGeneratedPresents(CallbackInfo ci) {
-		RtFramePresenter.INSTANCE.flushPendingPresents(this.swapchain, this.presentQueue);
+		RtFramePresenter.INSTANCE.flushPendingPresents(this.swapchain);
 	}
 }

@@ -92,7 +92,7 @@ public final class RtDlssFg {
         lib = l;
         if (!l.hasDlssg()) {
             CausticaMod.LOGGER.warn("DLSS-FG: loaded ngxshim.dll has no DLSSG ABI — rebuild the shim "
-                    + "(cmake --build native/ngx_shim/build --config Release)");
+                    + "(cmake --build build/cmake/ngx_shim --config Release)");
             return;
         }
         available = l.dlssgAvailable();
@@ -167,7 +167,9 @@ public final class RtDlssFg {
             long uiView, long uiImage, int uiFormat,
             long outputInterpView, long outputInterpImage, int outputInterpFormat,
             int width, int height, int mvecDepthWidth, int mvecDepthHeight,
-            int multiFrameCount, int multiFrameIndex, float mvScaleX, float mvScaleY,
+            int multiFrameCount, int multiFrameIndex,
+            long backbufferFrameId,
+            float mvScaleX, float mvScaleY,
             boolean depthInverted, boolean colorBuffersHDR, boolean cameraMotionIncluded, boolean reset,
             Matrix4fc clipToPrevClip, Matrix4fc prevClipToClip) {
         if (!isReady()) {
@@ -185,7 +187,7 @@ public final class RtDlssFg {
                     outputInterpView, outputInterpImage, outputInterpFormat,
                     0L, 0L, 0, // outputReal (skip; MC presents the real frame itself)
                     width, height, mvecDepthWidth, mvecDepthHeight,
-                    multiFrameCount, multiFrameIndex, mvScaleX, mvScaleY,
+                    multiFrameCount, multiFrameIndex, backbufferFrameId, mvScaleX, mvScaleY,
                     depthInverted ? 1 : 0, colorBuffersHDR ? 1 : 0, cameraMotionIncluded ? 1 : 0, reset ? 1 : 0,
                     MemorySegment.NULL, MemorySegment.NULL, clipToPrev, prevToClip);
             if (NgxRuntime.ngxFailed(rc)) {

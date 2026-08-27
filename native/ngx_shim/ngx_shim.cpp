@@ -570,6 +570,7 @@ NGX_SHIM_EXPORT int ngxshim_evaluate_dlssg(VkCommandBuffer cmd, void* feature,
                                            unsigned int width, unsigned int height,
                                            unsigned int mvecDepthWidth, unsigned int mvecDepthHeight,
                                            unsigned int multiFrameCount, unsigned int multiFrameIndex,
+                                           unsigned long long backbufferFrameId,
                                            float mvecScaleX, float mvecScaleY,
                                            int depthInverted, int colorBuffersHDR, int cameraMotionIncluded, int reset,
                                            float* cameraViewToClip, float* clipToCameraView,
@@ -604,6 +605,8 @@ NGX_SHIM_EXPORT int ngxshim_evaluate_dlssg(VkCommandBuffer cmd, void* feature,
     NVSDK_NGX_DLSSG_Opt_Eval_Params opt{};
     opt.multiFrameCount = multiFrameCount;
     opt.multiFrameIndex = multiFrameIndex;
+    NVSDK_NGX_Parameter_SetULL(f->params, NVSDK_NGX_DLSSG_Parameter_BackbufferFrameID,
+                              backbufferFrameId);
     opt.mvecScale[0] = mvecScaleX;
     opt.mvecScale[1] = mvecScaleY;
     opt.depthInverted = depthInverted != 0;

@@ -234,14 +234,9 @@ public final class RtComposite {
     // raw-copied (misdisplayed). Lazily created; the image is sized to the swapchain.
     private RtSdrPresentPipeline sdrPresentPipeline;
     private RtImage sdrPresentImage;
-    // DLSS Frame Generation: per-generated-frame interpolated output images (backbuffer size/format), and
-    // the jitter-free reprojection matrices derived from the MV view-projections each frame. In HDR mode
-    // these hold DLSSG's raw PQ-encoded output, which is blitted straight to the (PQ) swapchain — no decode
-    // needed since the swapchain itself is PQ-native.
-    private RtImage[] fgInterp = new RtImage[0];
-    private int fgInterpW = -1;
-    private int fgInterpH = -1;
-    private int fgInterpFormat = Integer.MIN_VALUE;
+    // DLSS Frame Generation temporal reset and jitter-free reprojection matrices. Per-frame input snapshots
+    // and interpolated outputs live in RtFramePresenter so they remain valid while the next real frame is
+    // already rendering on Minecraft's primary graphics queue.
     private boolean fgReset = true;
     private final Matrix4f fgClipToPrev = new Matrix4f();
     private final Matrix4f fgPrevToClip = new Matrix4f();
@@ -258,6 +253,7 @@ public final class RtComposite {
     // linear blit of `output` fills it when RR is off/unavailable (the no-RR reference / fallback).
     private RtImage rrOutput;
     private final RtExposure exposure = new RtExposure();
+    private RtGpuTimings gpuTimings;
 
     // Trace + guide buffers run at render res; composite (display-mapping) runs at display res.
     private int displayW = -1;
@@ -1134,6 +1130,10 @@ public final class RtComposite {
         RtEntities.FrameEntities frameEntities = null;
         VkCommandBuffer cmd = encoder.allocateAndBeginTransientCommandBuffer();
         RtDebugLabels.name(ctx, VK10.VK_OBJECT_TYPE_COMMAND_BUFFER, cmd.address(), "composite command buffer");
+        if (RtFrameStats.enabled() && gpuTimings == null) {
+            gpuTimings = new RtGpuTimings(ctx);
+        }
+        RtGpuTimings.Frame gpuFrame = gpuTimings != null ? gpuTimings.begin(cmd) : null;
         int debugView = debugView();
         RtTerrain terrain = RtTerrain.currentOrNull();
         try (MemoryStack stack = MemoryStack.stackPush(); RtDebugLabels.Scope frameLabel = RtDebugLabels.scope(ctx, cmd, "composite frame")) {
@@ -1302,16 +1302,20 @@ public final class RtComposite {
             }
             VulkanCommandEncoder.memoryBarrier(cmd, stack); // sky LUT writes visible to raygen/miss
 
+            if (gpuFrame != null) gpuFrame.finish("setup");
+
             try (RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "world primary trace");
                  RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.tracePrimary")) {
                 active.trace(cmd, renderW, renderH, pushConstants, 0);
             }
             VulkanCommandEncoder.memoryBarrier(cmd, stack); // continuation/guide writes visible to pass B
+            if (gpuFrame != null) gpuFrame.finish("primary");
             try (RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "world indirect trace");
                  RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.traceIndirect")) {
                 active.trace(cmd, renderW, renderH, pushConstants, 1);
             }
             VulkanCommandEncoder.memoryBarrier(cmd, stack); // RT writes visible to DLSS reads
+            if (gpuFrame != null) gpuFrame.finish("indirect");
             // DLSS-RR denoise + upscale. The RT pass wrote noisy color (render res) + guides;
             // RR reads them and writes the display-res denoised result straight into rrOutput.
             if (rrPath && RtDlssRr.INSTANCE.ensureFeature(cmd.address(), renderW, renderH, displayW, displayH)) {
@@ -1335,6 +1339,7 @@ public final class RtComposite {
                 }
             }
             VulkanCommandEncoder.memoryBarrier(cmd, stack); // rrOutput visible to exposure histogram
+            if (gpuFrame != null) gpuFrame.finish("denoise");
 
             // Auto-exposure meters rrOutput (the post-RR, denoised/converged image), not the raw
             // pre-RR trace: RR has no notion of exposure (DLSS-RR Integration Guide §3.7 — ignore
@@ -1349,6 +1354,7 @@ public final class RtComposite {
                 exposure.recordStateReadback(cmd, stack);
             }
             VulkanCommandEncoder.memoryBarrier(cmd, stack); // exposure image visible to the display mapper
+            if (gpuFrame != null) gpuFrame.finish("exposure");
 
             try (RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "bloom");
                  RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.bloom")) {
@@ -1358,6 +1364,7 @@ public final class RtComposite {
                 bloomPipeline.dispatch(cmd, bloomLevels,
                         bloom.thresholdSceneLinear(), bloom.softKneeFraction(), bloom.radius());
             }
+            if (gpuFrame != null) gpuFrame.finish("bloom");
 
             try (RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "map RT to display");
                  RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.displayMap")) {
@@ -1383,6 +1390,7 @@ public final class RtComposite {
                 hdrWrittenThisFrame = false;
             }
             VulkanCommandEncoder.memoryBarrier(cmd, stack);
+            if (gpuFrame != null) gpuFrame.finish("display");
 
             try (RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "copy composite to main target");
                  RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.copyOutput")) {
@@ -1390,6 +1398,7 @@ public final class RtComposite {
                         dstImage, VK10.VK_IMAGE_LAYOUT_GENERAL, copyRegion(stack, displayW, displayH));
             }
             VulkanCommandEncoder.memoryBarrier(cmd, stack);
+            if (gpuFrame != null) gpuFrame.finish("copy");
         }
         if (VK10.vkEndCommandBuffer(cmd) != VK10.VK_SUCCESS) {
             throw new IllegalStateException("vkEndCommandBuffer(rt composite) failed");
@@ -1605,6 +1614,10 @@ public final class RtComposite {
         pathSamplingPolicySignature = Long.MIN_VALUE;
         destroyGuideImages();
         exposure.destroy();
+        if (gpuTimings != null) {
+            gpuTimings.destroy();
+            gpuTimings = null;
+        }
         if (displayPipeline != null) {
             displayPipeline.destroy();
             displayPipeline = null;
@@ -1653,15 +1666,6 @@ public final class RtComposite {
             sdrPresentImage.destroy();
             sdrPresentImage = null;
         }
-        for (RtImage img : fgInterp) {
-            if (img != null) {
-                img.destroy();
-            }
-        }
-        fgInterp = new RtImage[0];
-        fgInterpW = -1;
-        fgInterpH = -1;
-        fgInterpFormat = Integer.MIN_VALUE;
         if (worldPipeline != null) {
             worldPipeline.destroy();
             worldPipeline = null;
@@ -1986,11 +1990,11 @@ public final class RtComposite {
 
     /**
      * DLSS Frame Generation quality: capture a copy of {@code main} (the main render target) into
-     * {@link #fgHudlessImage} for {@link #fgInterpolate} to feed DLSSG as the "hudless" resource. Call from
+     * {@link #fgHudlessImage} for the frame presenter to feed DLSSG as the "hudless" resource. Call from
      * {@code GameRendererMixin} right after {@code GuiRenderer.render()} but BEFORE
      * {@link RtUiOverlay#compositeIfUsed()} — at that point, when the UI overlay redirect is active, {@code
      * main} still has no combined UI baked in (world overlays, hand/screen effects and GUI went to the
-     * overlay target instead). No-op (and {@link #fgInterpolate} passes 0/0/0 for hudless, same as always)
+     * overlay target instead). No-op (and the presenter passes 0/0/0 for hudless, same as always)
      * unless FG is active for the current in-world frame and the UI overlay redirect is active. Capturing
      * while FG is suspended in a menu wastes GPU work; capturing without the redirect would just copy the
      * already-composited backbuffer, which is useless as a distinct hudless input.
@@ -2035,8 +2039,8 @@ public final class RtComposite {
 
     /**
      * HDR counterpart of {@link #captureFgHudless} — copies {@code src} (this frame's {@code hdrDisplayImage},
-     * before the combined UI overlay is blended in) into {@link #fgHdrHudlessImage} for {@link
-     * #fgInterpolate}'s HDR path to feed DLSSG as the "hudless" resource. A plain copy, not a format
+     * before the combined UI overlay is blended in) into {@link #fgHdrHudlessImage} for the frame presenter's
+     * HDR path to feed DLSSG as the "hudless" resource. A plain copy, not a format
      * conversion: both images are
      * already PQ-encoded (the display-ready EOTF-encoded [0,1] signal DLSS-FG's programming guide requires),
      * so no encode step is needed. Called from {@link #presentHdr} using its already-open {@code cmd}/
@@ -2066,36 +2070,11 @@ public final class RtComposite {
     }
 
     /**
-     * DLSS Frame Generation: record the DLSSG evaluate for generated frame {@code index} of {@code count}
-     * (backbuffer = the final frame; HW depth = {@code gDepth}; motion = {@code gMotion}) into Minecraft's
-     * command encoder, returning the interpolated output image (backbuffer size) for {@link RtFramePresenter}
-     * to blit into a generated swapchain image. On {@code index == 1} it ensures the feature (created in its
-     * own synchronous submit), the per-index output images, and the jitter-free reprojection matrices.
-     * Returns {@code null} (caller falls back to duplicating the real frame for this one frame, no session
-     * impact) when there's simply no captured RT frame to interpolate from right now — routine and expected
-     * on menu/loading/transition frames, since {@link RtFramePresenter#isActive} only gates on being in a
-     * world, not on RT having actually produced a frame this tick. Throws instead for failures that should
-     * never happen once RT is actively producing frames (DLSSG feature creation failing, an out-of-range
-     * index, the evaluate itself failing) — the caller treats those as fatal and disables FG for the
-     * session, same as any other FG present-record failure, rather than silently degrading to duplicated
-     * (non-interpolated) frames forever with no visible sign anything is wrong. Rotation-only matrices;
-     * camera translation is carried by the mvecs (cameraMotionIncluded).
-     *
-     * <p>{@code hdrBackbuffer} selects the HDR path. Per the DLSS-FG programming guide's HDR section, scRGB is
-     * explicitly unsupported as a DLSS-FG input ("not suitable as inputs to DLSS-FG" — it wants a
-     * display-ready, EOTF-encoded [0,1] signal, recommending HDR10/ST.2084) — since the renderer's whole HDR
-     * pipeline is natively PQ-encoded, every image fed to {@code RtDlssFg.evaluate} in HDR mode is already in
-     * that format with no extra conversion needed: the backbuffer is the raw {@code backbufferView}/
-     * {@code backbufferImage} the caller passed in ({@link #hdrBackbufferView()}, already PQ + UI-composited
-     * by {@link #presentHdr}); the hudless resource is {@link #fgHdrHudlessImage} (copied by {@link
-     * #presentHdr} <em>before</em> its own UI composite ran, mirroring {@link #captureFgHudless}'s pre-UI
-     * timing); and DLSSG's own (also PQ-encoded) output is returned as-is, since the swapchain itself is
-     * PQ-native and can blit it directly. The UI resource itself needs no HDR-specific handling — it's the
-     * same combined {@link RtUiOverlay} texture used by both present paths (only the *compositing* math that
-     * consumes it differs, done separately by {@code presentHdr}/{@code RtUiOverlay}, not here).
+     * Capture the live handles and reprojection state needed to snapshot this real frame for DLSSG. The
+     * presenter copies the images on Minecraft's graphics queue, then evaluates from those copies on its
+     * dedicated frame queue so the next real frame can safely overwrite the live guide/backbuffer images.
      */
-    public RtImage fgInterpolate(VulkanCommandEncoder enc, long backbufferView, long backbufferImage,
-            int swapW, int swapH, int index, int count, boolean hdrBackbuffer) {
+    FgInputs prepareFgInputs(int swapW, int swapH, boolean hdrBackbuffer) {
         if (failed || gDepth == null || gMotion == null || !frameCaptured) {
             return null;
         }
@@ -2104,56 +2083,35 @@ public final class RtComposite {
             return null;
         }
         final int fmt = hdrBackbuffer ? VK10.VK_FORMAT_R16G16B16A16_SFLOAT : VK10.VK_FORMAT_R8G8B8A8_UNORM;
-        if (index == 1) {
-            if (!ensureFgFeature(ctx, swapW, swapH, renderW, renderH, fmt)) {
-                throw new IllegalStateException("DLSSG feature not ready (ensureFgFeature failed)");
-            }
-            ensureFgInterp(ctx, count, swapW, swapH, fmt);
-            // clipToPrevClip = prevVP * inverse(curVP); prevClipToClip = curVP * inverse(prevVP). Both from
-            // the (rotation-only, camera-relative) MV view-projections, so jitter-free.
-            fgMatTmp.set(mvCurProjView).invert();
-            fgClipToPrev.set(mvPrevProjView).mul(fgMatTmp);
-            fgMatTmp.set(mvPrevProjView).invert();
-            fgPrevToClip.set(mvCurProjView).mul(fgMatTmp);
+        if (!ensureFgFeature(ctx, swapW, swapH, renderW, renderH, fmt)) {
+            throw new IllegalStateException("DLSSG feature not ready (ensureFgFeature failed)");
         }
-        if (index < 1 || index > fgInterp.length || fgInterp[index - 1] == null) {
-            throw new IllegalStateException(
-                    "fgInterpolate index " + index + " out of range for fgInterp[" + fgInterp.length + "]");
-        }
-        RtImage out = fgInterp[index - 1];
+        // clipToPrevClip = prevVP * inverse(curVP); prevClipToClip = curVP * inverse(prevVP). Both from
+        // the (rotation-only, camera-relative) MV view-projections, so jitter-free.
+        fgMatTmp.set(mvCurProjView).invert();
+        fgClipToPrev.set(mvPrevProjView).mul(fgMatTmp);
+        fgMatTmp.set(mvPrevProjView).invert();
+        fgPrevToClip.set(mvCurProjView).mul(fgMatTmp);
+
         // Only feed hudless/ui when they exist AND match this frame's backbuffer size — a stale or mismatched
         // size (e.g. mid-resize) is worse than skipping, so fall back to 0/0/0 (DLSSG just does without).
         RtImage hudlessSrc = hdrBackbuffer ? fgHdrHudlessImage : fgHudlessImage;
         boolean hudlessReady = hudlessSrc != null && hudlessSrc.width == swapW && hudlessSrc.height == swapH;
-        long hudlessView = hudlessReady ? hudlessSrc.view : 0L;
-        long hudlessImg = hudlessReady ? hudlessSrc.image : 0L;
         int hudlessFmt = hdrBackbuffer ? VK10.VK_FORMAT_R16G16B16A16_SFLOAT : VK10.VK_FORMAT_R8G8B8A8_UNORM;
         boolean uiReady = RtUiOverlay.overlayWidth() == swapW && RtUiOverlay.overlayHeight() == swapH
                 && RtUiOverlay.overlayColorView() != 0L && RtUiOverlay.overlayColorImage() != 0L;
-        long uiView = uiReady ? RtUiOverlay.overlayColorView() : 0L;
         long uiImg = uiReady ? RtUiOverlay.overlayColorImage() : 0L;
+        return new FgInputs(gDepth, gMotion, hudlessReady ? hudlessSrc : null, uiImg,
+                renderW, renderH, fmt, hudlessFmt, hdrBackbuffer, fgReset,
+                new Matrix4f(fgClipToPrev), new Matrix4f(fgPrevToClip));
+    }
 
-        VkCommandBuffer cmd = enc.allocateAndBeginTransientCommandBuffer();
-        boolean ok = RtDlssFg.INSTANCE.evaluate(cmd.address(),
-                backbufferView, backbufferImage, fmt,
-                gDepth.view, gDepth.image, VK10.VK_FORMAT_R32_SFLOAT,
-                gMotion.view, gMotion.image, VK10.VK_FORMAT_R16G16_SFLOAT,
-                hudlessView, hudlessImg, hudlessReady ? hudlessFmt : 0,
-                uiView, uiImg, uiReady ? VK10.VK_FORMAT_R8G8B8A8_UNORM : 0,
-                out.view, out.image, fmt,
-                swapW, swapH, renderW, renderH, count, index, 1.0f, 1.0f,
-                true /* depthInverted (reversed-Z) */, hdrBackbuffer /* colorBuffersHDR */,
-                true /* cameraMotionIncluded (in mvecs) */, fgReset,
-                fgClipToPrev, fgPrevToClip);
-        if (VK10.vkEndCommandBuffer(cmd) != VK10.VK_SUCCESS) {
-            throw new IllegalStateException("vkEndCommandBuffer(fg interpolate) failed");
-        }
+    void markFgEvaluationRecorded() {
         fgReset = false;
-        if (!ok) {
-            throw new IllegalStateException("ngxshim_evaluate_dlssg failed (RtDlssFg.evaluate returned false)");
-        }
-        enc.execute(cmd);
-        return out;
+    }
+
+    void resetFgHistory() {
+        fgReset = true;
     }
 
     private boolean ensureFgFeature(RtContext ctx, int w, int h, int rw, int rh, int fmt) {
@@ -2166,22 +2124,9 @@ public final class RtComposite {
         return RtDlssFg.INSTANCE.featureReadyFor(w, h, rw, rh, fmt);
     }
 
-    private void ensureFgInterp(RtContext ctx, int count, int w, int h, int fmt) {
-        if (fgInterp.length == count && fgInterpW == w && fgInterpH == h && fgInterpFormat == fmt
-                && (count == 0 || fgInterp[0] != null)) {
-            return;
-        }
-        for (RtImage img : fgInterp) {
-            if (img != null) {
-                img.destroy();
-            }
-        }
-        fgInterp = new RtImage[count];
-        for (int i = 0; i < count; i++) {
-            fgInterp[i] = ctx.createStorageImage(w, h, fmt, "FG interp " + i + " " + w + "x" + h);
-        }
-        fgInterpW = w;
-        fgInterpH = h;
-        fgInterpFormat = fmt;
+    record FgInputs(RtImage depth, RtImage motion, RtImage hudless, long uiImage,
+                    int renderWidth, int renderHeight, int backbufferFormat, int hudlessFormat,
+                    boolean hdrBackbuffer, boolean reset,
+                    Matrix4f clipToPrevClip, Matrix4f prevClipToClip) {
     }
 }

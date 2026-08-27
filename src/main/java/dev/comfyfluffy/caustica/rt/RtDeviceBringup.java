@@ -123,6 +123,9 @@ public final class RtDeviceBringup {
     private static volatile int maxOpacity4StateSubdivisionLevel;
     private static volatile int computeQueueFamilyIndex = -1;
     private static volatile int computeQueueIndex = -1;
+    private static volatile int frameQueueFamilyIndex = -1;
+    private static volatile int frameQueueIndex = -1;
+    private static volatile int presentQueueIndex = -1;
     private static boolean loggedUnavailable;
 
     private static final VulkanPNextStruct AS_FEATURES_STRUCT = new VulkanPNextStruct(
@@ -303,6 +306,32 @@ public final class RtDeviceBringup {
         return computeQueueIndex;
     }
 
+    /** Whether device creation reserved dedicated graphics-family queues for DLSSG and presentation. */
+    public static boolean frameQueuesReserved() {
+        return frameQueueFamilyIndex >= 0 && frameQueueIndex >= 0 && presentQueueIndex >= 0;
+    }
+
+    public static int frameQueueFamilyIndex() {
+        if (!frameQueuesReserved()) {
+            throw new IllegalStateException("Caustica frame queues were not reserved");
+        }
+        return frameQueueFamilyIndex;
+    }
+
+    public static int frameQueueIndex() {
+        if (!frameQueuesReserved()) {
+            throw new IllegalStateException("Caustica frame queues were not reserved");
+        }
+        return frameQueueIndex;
+    }
+
+    public static int presentQueueIndex() {
+        if (!frameQueuesReserved()) {
+            throw new IllegalStateException("Caustica frame queues were not reserved");
+        }
+        return presentQueueIndex;
+    }
+
     /**
      * Reserve one additional physical queue at device-creation time. Minecraft's queue-family map only
      * requests handles for its graphics/compute/transfer queues; fetching a higher queue index without first
@@ -380,6 +409,7 @@ public final class RtDeviceBringup {
                     priorities.put(i, oldPriorities.get(i));
                 }
             }
+            priorities.put(queueIndex, 1.0f);
             matchingRequest.pQueuePriorities(priorities);
         } else {
             VkDeviceQueueCreateInfo.Buffer expanded = VkDeviceQueueCreateInfo.calloc(requestedQueues.capacity() + 1, stack);
@@ -395,7 +425,7 @@ public final class RtDeviceBringup {
             expanded.get(requestedQueues.capacity())
                     .sType$Default()
                     .queueFamilyIndex(selectedFamily)
-                    .pQueuePriorities(stack.callocFloat(1));
+                    .pQueuePriorities(stack.floats(1.0f));
             deviceCreateInfo.pQueueCreateInfos(expanded);
         }
 
@@ -405,6 +435,80 @@ public final class RtDeviceBringup {
         CausticaMod.LOGGER.info(
                 "Reserved Caustica compute queue family={} index={} (family queues={}, flags=0x{})",
                 selectedFamily, queueIndex, selected.queueCount(), Integer.toHexString(selected.queueFlags()));
+    }
+
+    /**
+     * Reserve two additional queues from Minecraft's graphics/present family. DLSS Frame Generation records
+     * evaluate/transfer work on the first and queues generated plus real presents on the second. This lets
+     * each generated frame become presentable as soon as its semaphore signals without inserting present
+     * operations between later NGX evaluations.
+     */
+    public static void reserveFrameQueues(VkDeviceCreateInfo deviceCreateInfo,
+                                          VulkanPhysicalDevice physicalDevice, MemoryStack stack) {
+        frameQueueFamilyIndex = -1;
+        frameQueueIndex = -1;
+        presentQueueIndex = -1;
+        if (!rtRequested) {
+            return;
+        }
+
+        VkDeviceQueueCreateInfo.Buffer requestedQueues = deviceCreateInfo.pQueueCreateInfos();
+        if (requestedQueues == null) {
+            return;
+        }
+        int graphicsFamily = physicalDevice.graphicsQueueFamilyAndIndex().firstInt();
+        VkDeviceQueueCreateInfo graphicsRequest = null;
+        for (int i = 0; i < requestedQueues.capacity(); i++) {
+            VkDeviceQueueCreateInfo request = requestedQueues.get(i);
+            if (request.queueFamilyIndex() == graphicsFamily) {
+                graphicsRequest = request;
+                break;
+            }
+        }
+        if (graphicsRequest == null) {
+            CausticaMod.LOGGER.warn("DLSS-FG async queue unavailable: graphics family {} was not requested",
+                    graphicsFamily);
+            return;
+        }
+
+        var count = stack.callocInt(1);
+        VK10.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice.vkPhysicalDevice(), count, null);
+        VkQueueFamilyProperties.Buffer families = VkQueueFamilyProperties.calloc(count.get(0), stack);
+        VK10.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice.vkPhysicalDevice(), count, families);
+        if (graphicsFamily < 0 || graphicsFamily >= families.capacity()) {
+            CausticaMod.LOGGER.warn("DLSS-FG async queue unavailable: invalid graphics family {}", graphicsFamily);
+            return;
+        }
+
+        int queueIndex = graphicsRequest.queueCount();
+        VkQueueFamilyProperties graphicsProperties = families.get(graphicsFamily);
+        int requiredQueueCount = queueIndex + 2;
+        if (requiredQueueCount > graphicsProperties.queueCount()) {
+            CausticaMod.LOGGER.warn(
+                    "DLSS-FG async queues unavailable: graphics family {} needs two spare queues "
+                            + "(requested={}, total={})",
+                    graphicsFamily, queueIndex, graphicsProperties.queueCount());
+            return;
+        }
+
+        var oldPriorities = graphicsRequest.pQueuePriorities();
+        var priorities = stack.callocFloat(requiredQueueCount);
+        if (oldPriorities != null) {
+            for (int i = 0; i < queueIndex; i++) {
+                priorities.put(i, oldPriorities.get(i));
+            }
+        }
+        priorities.put(queueIndex, 1.0f);
+        priorities.put(queueIndex + 1, 1.0f);
+        graphicsRequest.pQueuePriorities(priorities);
+        frameQueueFamilyIndex = graphicsFamily;
+        frameQueueIndex = queueIndex;
+        presentQueueIndex = queueIndex + 1;
+        CausticaMod.LOGGER.info(
+                "Reserved Caustica frame queues family={} evaluateIndex={} presentIndex={} "
+                        + "(family queues={}, flags=0x{})",
+                graphicsFamily, frameQueueIndex, presentQueueIndex, graphicsProperties.queueCount(),
+                Integer.toHexString(graphicsProperties.queueFlags()));
     }
 
     /** Optional extensions whose extension and feature requirements are both supported. */

@@ -681,7 +681,7 @@ public final class CausticaConfig {
         public static final class Fg {
             public static final BooleanSetting ENABLED = bool("caustica.rt.fg", "frame-generation.enabled", false);
             public static final IntSetting MULTI_FRAME_COUNT =
-                    intAtLeast("caustica.rt.fg.multiFrameCount", "frame-generation.multi-frame-count", 1, 1);
+                    clampedInt("caustica.rt.fg.multiFrameCount", "frame-generation.multi-frame-count", 1, 1, 3);
             public static final BooleanSetting SUSPEND_IN_MENUS =
                     bool("caustica.rt.fg.suspendInMenus", "frame-generation.suspend-in-menus", true);
 

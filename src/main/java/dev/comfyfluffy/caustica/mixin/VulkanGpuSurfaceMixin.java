@@ -23,6 +23,7 @@ import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPresentIdKHR;
 import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
 import org.lwjgl.vulkan.VkSurfaceFormatKHR;
 import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
 import org.lwjgl.vulkan.VkSwapchainLatencyCreateInfoNV;
@@ -107,6 +108,12 @@ public abstract class VulkanGpuSurfaceMixin {
 
 	@Unique
 	private int caustica$metadataPeakNits = -1;
+
+	@Unique
+	private int caustica$surfaceMinImageCount = -1;
+
+	@Unique
+	private int caustica$fgPresentCapacity;
 
 	@Inject(method = "<init>(Lcom/mojang/blaze3d/vulkan/VulkanDevice;J)V", at = @At("TAIL"))
 	private void caustica$logHdrCapabilities(VulkanDevice device, long windowHandle, CallbackInfo ci) {
@@ -220,21 +227,16 @@ public abstract class VulkanGpuSurfaceMixin {
 	}
 
 	/**
-	 * Chain {@code VkSwapchainLatencyCreateInfoNV{latencyModeEnable=true}} into the swapchain's pNext at
-	 * creation. {@code vkSetLatencySleepModeNV} only takes effect on a swapchain created with this flag,
-	 * so it has to be set here,
-	 * before there's any other reason to touch swapchain creation. Preserves whatever pNext was already
-	 * there (currently nothing else chains one). The extra struct is stack-allocated and only needs to
-	 * survive this call — Vulkan reads pNext chains synchronously during {@code vkCreateSwapchainKHR}, it
-	 * doesn't retain the pointer afterward, so freeing it when this method's stack frame pops is safe even
-	 * though {@code pCreateInfo} isn't touched again after this point in {@code configure()}. No-op (calls
-	 * through unchanged) when Reflex isn't enabled + device-supported.
+	 * Apply features that must be declared before swapchain creation: reserve enough images for all configured
+	 * generated frames, and chain {@code VkSwapchainLatencyCreateInfoNV} when Reflex is available. The
+	 * stack-backed latency struct only needs to survive the synchronous {@code vkCreateSwapchainKHR} call.
 	 */
 	@Redirect(method = "configure",
 			at = @At(value = "INVOKE",
 					target = "Lorg/lwjgl/vulkan/KHRSwapchain;vkCreateSwapchainKHR(Lorg/lwjgl/vulkan/VkDevice;Lorg/lwjgl/vulkan/VkSwapchainCreateInfoKHR;Lorg/lwjgl/vulkan/VkAllocationCallbacks;Ljava/nio/LongBuffer;)I"))
-	private int caustica$createSwapchainWithReflex(VkDevice device, VkSwapchainCreateInfoKHR pCreateInfo,
+	private int caustica$createSwapchainWithExtensions(VkDevice device, VkSwapchainCreateInfoKHR pCreateInfo,
 			VkAllocationCallbacks pAllocator, LongBuffer pSwapchain) {
+		caustica$reserveFgSwapchainImages(pCreateInfo);
 		if (!RtDeviceBringup.reflexEnabled()) {
 			return KHRSwapchain.vkCreateSwapchainKHR(device, pCreateInfo, pAllocator, pSwapchain);
 		}
@@ -244,6 +246,40 @@ public abstract class VulkanGpuSurfaceMixin {
 			latency.latencyModeEnable(true);
 			pCreateInfo.pNext(latency.address());
 			return KHRSwapchain.vkCreateSwapchainKHR(device, pCreateInfo, pAllocator, pSwapchain);
+		}
+	}
+
+	@Unique
+	private void caustica$reserveFgSwapchainImages(VkSwapchainCreateInfoKHR createInfo) {
+		this.caustica$surfaceMinImageCount = -1;
+		this.caustica$fgPresentCapacity = 0;
+		if (!dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.enabled()) {
+			return;
+		}
+		try (MemoryStack stack = MemoryStack.stackPush()) {
+			VkSurfaceCapabilitiesKHR capabilities = VkSurfaceCapabilitiesKHR.calloc(stack);
+			int result = KHRSurface.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+					this.device.vkDevice().getPhysicalDevice(), this.surface, capabilities);
+			if (result != VK10.VK_SUCCESS) {
+				CausticaMod.LOGGER.warn("DLSS-FG: could not query swapchain capacity ({}); using vanilla sizing",
+						result);
+				return;
+			}
+			this.caustica$surfaceMinImageCount = capabilities.minImageCount();
+			int generatedCount = dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE
+					.effectiveMultiFrameCount();
+			int requested = Math.max(createInfo.minImageCount(),
+					this.caustica$surfaceMinImageCount + generatedCount);
+			int surfaceMax = capabilities.maxImageCount();
+			if (surfaceMax != 0) {
+				requested = Math.min(requested, surfaceMax);
+			}
+			createInfo.minImageCount(requested);
+			CausticaMod.LOGGER.info("DLSS-FG: requesting {} swapchain images (surface min={}, max={})",
+					requested, this.caustica$surfaceMinImageCount,
+					surfaceMax == 0 ? "unbounded" : Integer.toString(surfaceMax));
+		} catch (Throwable t) {
+			CausticaMod.LOGGER.warn("DLSS-FG: could not reserve swapchain images; using vanilla sizing", t);
 		}
 	}
 
@@ -259,14 +295,19 @@ public abstract class VulkanGpuSurfaceMixin {
 		if (RtDeviceBringup.reflexEnabled()) {
 			RtReflex.INSTANCE.applySleepMode(this.device.vkDevice(), this.swapchain);
 		}
-		// DLSS-FG diagnostic: MAILBOX/IMMEDIATE present modes let a later present silently replace/skip an
-		// earlier queued-but-not-yet-scanned-out one, which would drop FG's generated frame before the
-		// display ever shows it — even though our vkQueuePresentKHR call itself reports success. FIFO is the
-		// only mode that guarantees every queued present gets its own vblank. Log once per (re)configure so
-		// this is checkable without guessing at the in-game V-Sync setting.
+		// DLSS-FG diagnostic: MAILBOX/IMMEDIATE can let a later present replace an earlier queued image, which
+		// drops generated frames even though vkQueuePresentKHR succeeds. FIFO and FIFO_RELAXED preserve order;
+		// the latter can tear only when a present misses its target vblank. Log once per (re)configure so the
+		// swapchain capacity and delivery mode are visible without guessing from Video Settings.
 		if (dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.enabled()) {
-			CausticaMod.LOGGER.info("DLSS-FG: swapchain present mode = {} (FIFO required for generated frames "
-					+ "to actually display; MAILBOX/IMMEDIATE will silently drop them — enable V-Sync if not FIFO)",
+			this.caustica$fgPresentCapacity = this.caustica$surfaceMinImageCount < 0 ? 0 : Math.max(0,
+					this.swapchainImages.size() - this.caustica$surfaceMinImageCount);
+			CausticaMod.LOGGER.info("DLSS-FG: swapchain images={}, generated-frame capacity={} ({}x total); "
+					+ "present mode={} "
+					+ "(FIFO/FIFO_RELAXED preserve queued frames; MAILBOX/IMMEDIATE may drop them)",
+					this.swapchainImages.size(),
+					this.caustica$fgPresentCapacity,
+					this.caustica$fgPresentCapacity + 1,
 					config.presentMode());
 		}
 	}
@@ -377,8 +418,8 @@ public abstract class VulkanGpuSurfaceMixin {
 	 * DLSS Frame Generation (slice 2): after Minecraft blits the real frame into its acquired swapchain image
 	 * (but before {@code present()} shows it), present the generated frame(s) into additional swapchain images
 	 * via {@link RtFramePresenter}, so the display order is generated-then-real. Runs only on the normal
-	 * present path — the HDR/PQ present hooks cancel {@code blitFromTexture} at HEAD, so this TAIL is
-	 * skipped there (HDR+FG deferred). Iteration 1 duplicates the final frame (no DLSSG eval yet).
+	 * present path. The HDR/PQ path cancels {@code blitFromTexture} at HEAD and invokes the same engine
+	 * explicitly with its UI-composited HDR backbuffer.
 	 */
 	@Inject(method = "blitFromTexture", at = @At("TAIL"))
 	private void caustica$presentGeneratedFrames(CommandEncoderBackend commandEncoder, GpuTextureView textureView, CallbackInfo ci) {
@@ -390,7 +431,9 @@ public abstract class VulkanGpuSurfaceMixin {
 		if (srcImage == 0L) {
 			return;
 		}
-		int generatedCount = dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE.effectiveMultiFrameCount();
+		int generatedCount = Math.min(
+				dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE.effectiveMultiFrameCount(),
+				this.caustica$fgPresentCapacity);
 		RtFramePresenter.INSTANCE.prepareExtraFrames((VulkanCommandEncoder) commandEncoder, this.device,
 				this.swapchain, this.swapchainImages, this.presentSemaphores,
 				this.swapchainWidth, this.swapchainHeight,
@@ -414,7 +457,9 @@ public abstract class VulkanGpuSurfaceMixin {
 		if (hdrImage == 0L) {
 			return;
 		}
-		int generatedCount = dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE.effectiveMultiFrameCount();
+		int generatedCount = Math.min(
+				dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE.effectiveMultiFrameCount(),
+				this.caustica$fgPresentCapacity);
 		RtFramePresenter.INSTANCE.prepareExtraFrames(enc, this.device, this.swapchain, this.swapchainImages,
 				this.presentSemaphores, this.swapchainWidth, this.swapchainHeight,
 				hdrView, hdrImage, this.swapchainWidth, this.swapchainHeight, generatedCount, true);

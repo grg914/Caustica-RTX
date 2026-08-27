@@ -3,6 +3,7 @@ package dev.comfyfluffy.caustica;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class CausticaConfigTest {
@@ -78,6 +79,17 @@ final class CausticaConfigTest {
     void registersSamplingSettingsForConfigRoundTrips() {
         CausticaConfig.ensureRegistered();
         assertTrue(hasSetting("caustica.rt.risCandidates"));
+    }
+
+    @Test
+    void registersFrameGenerationSettingsWithSafeDefaults() {
+        CausticaConfig.ensureRegistered();
+        assertTrue(hasSetting("caustica.rt.fg"));
+        assertTrue(hasSetting("caustica.rt.fg.multiFrameCount"));
+        assertTrue(hasSetting("caustica.rt.fg.suspendInMenus"));
+        assertFalse(CausticaConfig.Rt.Fg.ENABLED.defaultValue());
+        assertEquals(1, CausticaConfig.Rt.Fg.MULTI_FRAME_COUNT.defaultValue());
+        assertTrue(CausticaConfig.Rt.Fg.SUSPEND_IN_MENUS.defaultValue());
     }
 
     @Test

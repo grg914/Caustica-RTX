@@ -1,6 +1,7 @@
-# Caustica
+# Caustica RTX
 
-Caustica is an experimental ray-traced renderer for Minecraft 26.2's Vulkan backend.
+Caustica RTX is an experimental, RTX-focused fork of
+[ComfyFluffy/Caustica](https://github.com/ComfyFluffy/Caustica) for Minecraft 26.2's Vulkan backend.
 It replaces the vanilla world view with hardware ray tracing and NVIDIA DLSS
 features while keeping Minecraft's familiar UI and gameplay intact.
 
@@ -20,7 +21,12 @@ changes while the renderer is being built.
 
 - Vulkan hardware path-traced world rendering
 - DLSS Ray Reconstruction support
-- DLSS Frame Generation support (experimental)
+- DLSS Frame Generation and RTX 50 Multi Frame Generation up to 4x (experimental)
+- NVIDIA Reflex with Low Latency Boost
+- In-game DLSS, frame-generation, multiplier, Reflex, and menu-suspension controls
+- PsychoV24 and analytical SDR tone mapping
+- Shuffled-scrambled Sobol path and RIS sampling
+- Correct alpha-tested redstone rendering
 - HDR output
 - Dynamic entity rendering in the ray-traced scene
 - LabPBR-style material support
@@ -29,6 +35,7 @@ changes while the renderer is being built.
 ## Requirements
 
 - **Vulkan graphics backend enabled**
+- Minecraft `26.2`, Fabric Loader `0.19.3` or newer, Fabric API, and Java 25
 - A GPU and driver with Vulkan ray tracing support
 - NVIDIA RTX GPU and supported driver for DLSS features
 - HDR-capable display and OS HDR mode for HDR output
@@ -41,7 +48,7 @@ changes while the renderer is being built.
 2. Install Fabric API.
 3. Put the Caustica jar in your Minecraft `mods` folder.
 4. Launch the game with the Vulkan graphics backend.
-5. Open Video Settings to adjust Caustica's renderer options.
+5. Open Video Settings to adjust Caustica RTX's renderer options.
 
 ## Usage Notes
 
@@ -51,7 +58,8 @@ changes while the renderer is being built.
 - On Linux if Minecraft crashes on startup with stack overflow errors, try adding `-Xss2M` to the Java args to increase the stack size.
 - Use Java args to improve performance. Minecraft Launcher default:
   `-XX:+UseCompactObjectHeaders -XX:+AlwaysPreTouch -XX:+UseStringDeduplication -XX:+UseZGC`
-- Frame Generation is experimental and needs to be enabled by modifying the configuration file.
+- Frame Generation, its 2x-4x multiplier, Reflex, and Reflex Boost are available in Video Settings.
+- 3x and 4x Multi Frame Generation require a supported GeForce RTX 50 Series GPU and driver.
 - HDR output requires an HDR swapchain and a correctly configured HDR display.
 - When HDR is enabled on Linux, Caustica selects GLFW's native Wayland backend automatically. X11/XWayland surfaces generally do not expose the required HDR10/PQ format.
 - If Minecraft falls back to OpenGL after a crash, re-enable the Vulkan backend

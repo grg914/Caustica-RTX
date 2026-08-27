@@ -1777,7 +1777,7 @@ public final class RtComposite {
             // UI overlay is blended in. Snapshot it before that composite overwrites it in place, mirroring
             // captureFgHudless's SDR pattern (pre-UI copy) but reusing this frame's already-open command
             // buffer.
-            if (RtDlssFg.enabled()) {
+            if (RtFramePresenter.INSTANCE.isActive()) {
                 captureFgHdrHudless(cmd, stack, src);
             }
 
@@ -1991,11 +1991,13 @@ public final class RtComposite {
      * {@link RtUiOverlay#compositeIfUsed()} — at that point, when the UI overlay redirect is active, {@code
      * main} still has no combined UI baked in (world overlays, hand/screen effects and GUI went to the
      * overlay target instead). No-op (and {@link #fgInterpolate} passes 0/0/0 for hudless, same as always)
-     * unless both FG and the UI overlay redirect are active — capturing this without the redirect would just
-     * copy the ALREADY-composited backbuffer, which is useless as a distinct hudless input.
+     * unless FG is active for the current in-world frame and the UI overlay redirect is active. Capturing
+     * while FG is suspended in a menu wastes GPU work; capturing without the redirect would just copy the
+     * already-composited backbuffer, which is useless as a distinct hudless input.
      */
     public void captureFgHudless(RenderTarget main) {
-        if (!RtDlssFg.enabled() || !RtUiOverlay.enabled() || main == null || main.getColorTexture() == null) {
+        if (!RtFramePresenter.INSTANCE.isActive()
+                || !RtUiOverlay.enabled() || main == null || main.getColorTexture() == null) {
             return;
         }
         RtContext ctx = RtContext.currentOrNull();

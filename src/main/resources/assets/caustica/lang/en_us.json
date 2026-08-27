@@ -140,6 +140,17 @@
 	"caustica.options.rt.dlssQuality.2": "Quality",
 	"caustica.options.rt.dlssQuality.5": "DLAA",
 
+	"caustica.options.rt.frameGeneration": "DLSS Frame Generation",
+	"caustica.options.rt.frameGeneration.tooltip": "Generate additional display frames between rendered frames. Requires a supported GeForce RTX GPU and driver.",
+	"caustica.options.rt.frameGenerationMultiplier": "Frame Generation Multiplier",
+	"caustica.options.rt.frameGenerationMultiplier.tooltip": "Total displayed-frame multiplier. 3x and 4x Multi Frame Generation require a supported GeForce RTX 50 Series GPU; unsupported values are clamped to the driver maximum.",
+	"caustica.options.rt.frameGenerationSuspendInMenus": "Suspend FG in Menus",
+	"caustica.options.rt.frameGenerationSuspendInMenus.tooltip": "Stop generating frames while a menu, inventory, or other full-screen interface is open.",
+	"caustica.options.rt.reflex": "NVIDIA Reflex",
+	"caustica.options.rt.reflex.tooltip": "Enable low-latency frame pacing and latency markers through VK_NV_low_latency2.",
+	"caustica.options.rt.reflexBoost": "Reflex Low Latency Boost",
+	"caustica.options.rt.reflexBoost.tooltip": "Keep GPU clocks elevated while Reflex is active for the lowest latency. Uses more power.",
+
 	"caustica.options.rt.debugView": "Debug View",
 	"caustica.options.rt.debugView.tooltip": "Inspect ray-tracing buffers and exposure diagnostics after the normal frame has rendered.",
 	"caustica.options.rt.debugView.0": "Off",

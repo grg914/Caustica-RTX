@@ -3,6 +3,7 @@ package dev.comfyfluffy.caustica.rt;
 import com.mojang.blaze3d.vulkan.VulkanCommandEncoder;
 import com.mojang.blaze3d.vulkan.VulkanDevice;
 
+import dev.comfyfluffy.caustica.CausticaConfig;
 import dev.comfyfluffy.caustica.CausticaMod;
 import dev.comfyfluffy.caustica.rt.accel.RtImage;
 import dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg;
@@ -51,7 +52,7 @@ import java.nio.LongBuffer;
 public final class RtFramePresenter {
     public static final RtFramePresenter INSTANCE = new RtFramePresenter();
 
-    private static final long ACQUIRE_TIMEOUT_NS = 5_000_000_000L;
+    private static final long ACQUIRE_TIMEOUT_NS = 5_000_000L;
 
     private static final long LOG_INTERVAL_NS = 1_000_000_000L;
 
@@ -59,7 +60,7 @@ public final class RtFramePresenter {
     private int acquireCursor;
     private boolean failed;
 
-    // Frames acquired + recorded this frame, awaiting present at present() HEAD (after MC's submit flush).
+    // Frames acquired and recorded this frame, awaiting present() after Minecraft flushes its main submit.
     private int[] pendingImageIndex = new int[0];
     private long[] pendingPresentSem = new long[0];
     private int pendingCount;
@@ -75,19 +76,19 @@ public final class RtFramePresenter {
     private RtFramePresenter() {
     }
 
-    /** Whether FG extra-present should run this frame (enabled, available, in a world). */
+    /** Whether FG extra-present should run this frame. */
     public boolean isActive() {
+        Minecraft minecraft = Minecraft.getInstance();
         return !failed && RtDlssFg.enabled() && RtDlssFg.INSTANCE.isAvailable()
-                && Minecraft.getInstance().level != null;
+                && minecraft.level != null
+                && (!CausticaConfig.Rt.Fg.SUSPEND_IN_MENUS.value() || minecraft.gui.screen() == null);
     }
 
     /**
-     * Acquire {@code generatedCount} extra swapchain images and record a Y-flipped blit of {@code srcImage}
-     * (the final rendered frame, GENERAL layout) into each, using Minecraft's command encoder {@code enc} so
-     * the work rides MC's next {@code submit()}. The presents happen later in {@link #flushPendingPresents}.
-     * Blits DLSSG's real interpolated output per generated frame, or a duplicate of the real frame when RT
-     * simply isn't producing frames this tick (routine). A genuine DLSSG failure latches FG off for the
-     * session — see {@link RtComposite#fgInterpolate}.
+     * Acquire {@code generatedCount} extra swapchain images and record the DLSSG evaluations plus Y-flipped
+     * blits into Minecraft's current command encoder. Minecraft's next submit executes the whole batch and
+     * signals the present semaphores; {@link #flushPendingPresents} then queues generated frames before the
+     * real frame. Swapchain creation reserves the required acquisition budget for this batch.
      *
      * @param hdrBackbuffer whether {@code backbufferView}/{@code srcImage} is the PQ HDR backbuffer
      *     ({@link RtComposite#hdrBackbufferView()}, already UI-composited) rather than the SDR main target —
@@ -119,20 +120,25 @@ public final class RtFramePresenter {
 
                 long acquireSem = acquireSemaphores[acquireCursor];
                 acquireCursor = (acquireCursor + 1) % acquireSemaphores.length;
-
                 int imageIndex;
                 try (MemoryStack stack = MemoryStack.stackPush()) {
                     IntBuffer pIndex = stack.callocInt(1);
-                    int r = KHRSwapchain.vkAcquireNextImageKHR(device.vkDevice(), swapchain, ACQUIRE_TIMEOUT_NS, acquireSem, 0L, pIndex);
-                    if (r != VK10.VK_SUCCESS && r != 1000001003 /* SUBOPTIMAL */) {
-                        return; // out-of-date/timeout: present what we have, let MC recover
+                    int acquireResult = KHRSwapchain.vkAcquireNextImageKHR(
+                            device.vkDevice(), swapchain, ACQUIRE_TIMEOUT_NS, acquireSem, 0L, pIndex);
+                    if (acquireResult == VK10.VK_TIMEOUT || acquireResult == VK10.VK_NOT_READY
+                            || acquireResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR) {
+                        return;
+                    }
+                    if (acquireResult != VK10.VK_SUCCESS
+                            && acquireResult != KHRSwapchain.VK_SUBOPTIMAL_KHR) {
+                        throw new IllegalStateException("vkAcquireNextImageKHR(FG) failed: " + acquireResult);
                     }
                     imageIndex = pIndex.get(0);
                 }
-                long dstImage = swapchainImages.getLong(imageIndex);
-                long presentSem = presentSemaphores[imageIndex];
-                recordBlit(enc, blitSrc, dstImage, copyW, copyH, acquireSem, presentSem);
 
+                long presentSem = presentSemaphores[imageIndex];
+                recordBlit(enc, blitSrc, swapchainImages.getLong(imageIndex), copyW, copyH,
+                        acquireSem, presentSem);
                 pendingImageIndex[pendingCount] = imageIndex;
                 pendingPresentSem[pendingCount] = presentSem;
                 pendingCount++;
@@ -145,21 +151,27 @@ public final class RtFramePresenter {
     }
 
     /**
-     * Present the frames acquired in {@link #prepareExtraFrames} (call at {@code present()} HEAD, after MC's
-     * {@code submit()} has flushed — so the present semaphores are signaled — and before MC presents the real
-     * frame, giving generated-then-real order).
+     * Present the frames acquired in {@link #prepareExtraFrames}. Called at {@code present()} HEAD after
+     * Minecraft flushed the submit that signals their semaphores and before it presents the real frame.
      */
     public void flushPendingPresents(long swapchain, VkQueue presentQueue) {
         int presentedThisFrame = 0;
         if (!failed && pendingCount != 0) {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 for (int i = 0; i < pendingCount; i++) {
-                    VkPresentInfoKHR present = VkPresentInfoKHR.calloc(stack).sType$Default();
-                    present.pWaitSemaphores(stack.longs(pendingPresentSem[i]));
-                    present.swapchainCount(1);
-                    present.pSwapchains(stack.longs(swapchain));
-                    present.pImageIndices(stack.ints(pendingImageIndex[i]));
-                    KHRSwapchain.vkQueuePresentKHR(presentQueue, present);
+                    VkPresentInfoKHR present = VkPresentInfoKHR.calloc(stack).sType$Default()
+                            .pWaitSemaphores(stack.longs(pendingPresentSem[i]))
+                            .swapchainCount(1)
+                            .pSwapchains(stack.longs(swapchain))
+                            .pImageIndices(stack.ints(pendingImageIndex[i]));
+                    int presentResult = KHRSwapchain.vkQueuePresentKHR(presentQueue, present);
+                    if (presentResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR) {
+                        break;
+                    }
+                    if (presentResult != VK10.VK_SUCCESS
+                            && presentResult != KHRSwapchain.VK_SUBOPTIMAL_KHR) {
+                        throw new IllegalStateException("vkQueuePresentKHR(FG) failed: " + presentResult);
+                    }
                     presentedThisFrame++;
                 }
             } catch (Throwable t) {
@@ -249,9 +261,8 @@ public final class RtFramePresenter {
         if (VK10.vkEndCommandBuffer(cmd) != VK10.VK_SUCCESS) {
             throw new IllegalStateException("vkEndCommandBuffer(fg blit) failed");
         }
-        // Register on MC's encoder (same order as MC's blitFromTexture): wait on the acquire, run the blit,
-        // signal the image's present semaphore. MC's once-per-frame submit() flushes this in one
-        // vkQueueSubmit, which is what actually signals presentSem (deferred-submit model).
+        // Register on Minecraft's persistent encoder. Its once-per-frame submit flushes every generated blit
+        // together and signals the corresponding present semaphores before present() queues those images.
         enc.waitSemaphore(acquireSem, 0L, 65536L);
         enc.execute(cmd);
         enc.signalSemaphore(presentSem, 0L, 4096L);

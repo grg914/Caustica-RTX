@@ -77,7 +77,12 @@ public final class RtVideoOptions {
             entities(),
             particles(),
             waterWaves(),
-            dlssQuality()
+            dlssQuality(),
+            frameGeneration(),
+            frameGenerationMultiplier(),
+            suspendFrameGenerationInMenus(),
+            reflex(),
+            reflexBoost()
         ));
         if (CausticaConfig.Rt.Hdr.swapchainPqAvailable()) {
             options.add(hdrEnabled());
@@ -344,6 +349,36 @@ public final class RtVideoOptions {
             new OptionInstance.IntRange(0, steps.size() - 1),
             initialPosition,
             position -> setting.set(steps.get(position)));
+    }
+
+    private static OptionInstance<Boolean> frameGeneration() {
+        return bool("caustica.options.rt.frameGeneration", CausticaConfig.Rt.Fg.ENABLED);
+    }
+
+    private static OptionInstance<Integer> frameGenerationMultiplier() {
+        IntSetting setting = CausticaConfig.Rt.Fg.MULTI_FRAME_COUNT;
+        return new OptionInstance<>(
+            "caustica.options.rt.frameGenerationMultiplier",
+            OptionInstance.cachedConstantTooltip(
+                    Component.translatable("caustica.options.rt.frameGenerationMultiplier.tooltip")),
+            (caption, generatedFrames) -> Options.genericValueLabel(caption,
+                    Component.literal((generatedFrames + 1) + "x")),
+            new OptionInstance.IntRange(1, 3),
+            Math.clamp(setting.value(), 1, 3),
+            setting::set);
+    }
+
+    private static OptionInstance<Boolean> suspendFrameGenerationInMenus() {
+        return bool("caustica.options.rt.frameGenerationSuspendInMenus",
+                CausticaConfig.Rt.Fg.SUSPEND_IN_MENUS);
+    }
+
+    private static OptionInstance<Boolean> reflex() {
+        return bool("caustica.options.rt.reflex", CausticaConfig.Rt.Reflex.ENABLED);
+    }
+
+    private static OptionInstance<Boolean> reflexBoost() {
+        return bool("caustica.options.rt.reflexBoost", CausticaConfig.Rt.Reflex.LOW_LATENCY_BOOST);
     }
 
     private static OptionInstance<Boolean> hdrEnabled() {

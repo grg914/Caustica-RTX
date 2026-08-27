@@ -92,7 +92,8 @@ public final class CausticaConfig {
                 " Controls terrain loading. Higher limits can load terrain faster but use more CPU and GPU time.");
         FILE.setComment("frame-generation",
                 " DLSS Frame Generation. Requires supported NVIDIA hardware and drivers.\n"
-                        + " multi-frame-count sets generated frames per rendered frame (1 = 2x, 2 = 3x, ...).");
+                        + " multi-frame-count sets generated frames per rendered frame (1 = 2x, 2 = 3x, ...).\n"
+                        + " suspend-in-menus avoids interpolating static menu and inventory screens.");
         FILE.setComment("reflex",
                 " NVIDIA Reflex. Requires supported NVIDIA hardware and drivers.\n"
                         + " minimum-interval-us controls frame limiting; 0 disables the limit.");
@@ -681,6 +682,8 @@ public final class CausticaConfig {
             public static final BooleanSetting ENABLED = bool("caustica.rt.fg", "frame-generation.enabled", false);
             public static final IntSetting MULTI_FRAME_COUNT =
                     intAtLeast("caustica.rt.fg.multiFrameCount", "frame-generation.multi-frame-count", 1, 1);
+            public static final BooleanSetting SUSPEND_IN_MENUS =
+                    bool("caustica.rt.fg.suspendInMenus", "frame-generation.suspend-in-menus", true);
 
             private Fg() {
             }

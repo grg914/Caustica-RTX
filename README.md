@@ -23,6 +23,9 @@ changes while the renderer is being built.
 - DLSS Ray Reconstruction support
 - DLSS Frame Generation and RTX 50 Multi Frame Generation up to 4x (experimental)
 - NVIDIA Reflex with Low Latency Boost
+- Capability-gated DLSS Neural Rendering / 3D-Guided Neural Rendering integration
+- RTX-safe Caustica-native post effects (contrast, saturation, vignette, optional sharpen)
+- RTX Performance Mode for lower path-tracing cost before Frame Generation
 - In-game DLSS, frame-generation, multiplier, Reflex, and menu-suspension controls
 - PsychoV24 and analytical SDR tone mapping
 - Shuffled-scrambled Sobol path and RIS sampling
@@ -59,6 +62,9 @@ changes while the renderer is being built.
 - Use Java args to improve performance. Minecraft Launcher default:
   `-XX:+UseCompactObjectHeaders -XX:+AlwaysPreTouch -XX:+UseStringDeduplication -XX:+UseZGC`
 - Frame Generation, its 2x-4x multiplier, Reflex, and Reflex Boost are available in Video Settings.
+- DLSS Neural Rendering settings are exposed in Video Settings, but activation requires a compatible NVIDIA-authorized DLSS-NR/NGX SDK/runtime. Public builds without that SDK report the feature unavailable instead of enabling a fake toggle.
+- Caustica Post FX provides shader-like visual controls without installing Iris/Sodium or replacing Caustica's Vulkan renderer.
+- RTX Performance Mode applies 1 SPP, 2 bounces, 4 RIS candidates, disables ray-traced particles/water waves, and keeps sharpen at zero to improve the real rendered base FPS before MFG.
 - 3x and 4x Multi Frame Generation require a supported GeForce RTX 50 Series GPU and driver.
 - HDR output requires an HDR swapchain and a correctly configured HDR display.
 - When HDR is enabled on Linux, Caustica selects GLFW's native Wayland backend automatically. X11/XWayland surfaces generally do not expose the required HDR10/PQ format.
@@ -69,7 +75,9 @@ changes while the renderer is being built.
 
 Caustica takes over the world renderer, so other mods that heavily modify world
 rendering, shader pipelines, post-processing, or the Vulkan backend may conflict.
-UI-only mods are more likely to work.
+Iris/Sodium shader-pipeline mode is therefore not combined with Caustica RTX.
+Use LabPBR resource packs plus Caustica's native post effects for RTX-safe visual
+customization. UI-only and non-renderer performance mods are more likely to work.
 
 ## Status
 
@@ -92,3 +100,14 @@ license terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 - [ ] NRD + FSR for non-NVIDIA GPUs
 - [ ] LOD
 - [ ] ReSTIR
+
+
+## DLSS Neural Rendering build support
+
+The normal public CI uses NVIDIA's public DLSS SDK. If that SDK does not contain
+`nvsdk_ngx_helpers_dlssnr_vk.h`, CMake builds the DLSS-NR ABI as safe stubs and the
+game reports Neural Rendering as unavailable while RR, FG/MFG and Reflex remain fully usable.
+
+A build environment with an NVIDIA-authorized compatible DLSS-NR SDK can enable the
+native implementation automatically when the feature-specific header is present.
+No proprietary NVIDIA SDK/runtime files are committed to this repository.

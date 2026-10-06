@@ -553,7 +553,7 @@ public final class CausticaConfig {
             public static final IntSetting DEBUG_VIEW = intValue("caustica.rt.debugView", "composite.debug-view", 0);
             public static final IntSetting SPP = intAtLeast("caustica.rt.spp", "composite.spp", 1, 1);
             public static final IntSetting MAX_BOUNCES =
-                    clampedInt("caustica.rt.maxBounces", "composite.max-bounces", 4, 2, 8);
+                    clampedInt("caustica.rt.maxBounces", "composite.max-bounces", 4, 1, 8);
             public static final BooleanSetting WATER_WAVES =
                     bool("caustica.rt.waterWaves", "composite.water-waves", true);
             // Sun/moon angular radii and the noon south tilt moved into the versioned look package

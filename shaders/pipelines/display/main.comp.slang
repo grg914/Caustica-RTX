@@ -200,6 +200,30 @@ float3 tonemapHdr(float3 lookedAcesCg) {
     return displayGammaHdr(hdrToneLut.SampleLevel(lutTexCoord(uvw, pc.lutSize), 0.0).rgb);
 }
 
+float3 applyScandiShaderGrade(float3 color) {
+    if (pc.scandiShaderEnabled == 0) {
+        return color;
+    }
+
+    float luma = dot(color, BT709_LUMA);
+
+    // Port of the user-supplied ScandiCraft DERCODE Fast grade:
+    // cool shadows, subtly warm highlights, no extra textures or passes.
+    float3 graded = lerp(float3(luma), color, clamp(pc.postFxSaturation, 0.0, 2.0));
+    graded = (graded - 0.5) * clamp(pc.postFxContrast, 0.5, 1.5) + 0.5;
+
+    float shadowMask = 1.0 - smoothstep(0.10, 0.55, luma);
+    float highlightMask = smoothstep(0.55, 0.95, luma);
+
+    graded *= lerp(float3(1.0), float3(0.975, 0.995, 1.035),
+            shadowMask * clamp(pc.scandiShadowTint, 0.0, 1.0));
+    graded *= lerp(float3(1.0), float3(1.025, 1.005, 0.980),
+            highlightMask * clamp(pc.scandiHighlightWarmth, 0.0, 1.0));
+
+    graded = clamp(graded, 0.0, 1.0);
+    return lerp(color, graded, clamp(pc.scandiGradeStrength, 0.0, 1.0));
+}
+
 float3 applyPostFx(float3 codeColor, int2 pix, uint w, uint h, float exposure) {
     if (pc.postFxEnabled == 0) {
         return codeColor;
@@ -207,12 +231,14 @@ float3 applyPostFx(float3 codeColor, int2 pix, uint w, uint h, float exposure) {
 
     float3 color = clamp(codeColor, 0.0, 1.0);
 
-    // Saturation in display space. Cheap and stable for an artistic post effect.
-    float luma = dot(color, BT709_LUMA);
-    color = lerp(float3(luma), color, clamp(pc.postFxSaturation, 0.0, 2.0));
-
-    // Contrast around perceptual middle grey.
-    color = (color - 0.5) * clamp(pc.postFxContrast, 0.5, 1.5) + 0.5;
+    if (pc.scandiShaderEnabled != 0) {
+        color = applyScandiShaderGrade(color);
+    } else {
+        // Generic post-FX path when the ScandiShader preset is not selected.
+        float luma = dot(color, BT709_LUMA);
+        color = lerp(float3(luma), color, clamp(pc.postFxSaturation, 0.0, 2.0));
+        color = (color - 0.5) * clamp(pc.postFxContrast, 0.5, 1.5) + 0.5;
+    }
 
     // Optional lightweight scene-detail sharpen. Uniform branch means zero extra
     // texture reads when the slider is 0 (the performance preset/default).

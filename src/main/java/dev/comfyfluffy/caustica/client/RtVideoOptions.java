@@ -66,6 +66,7 @@ public final class RtVideoOptions {
      */
     public static OptionInstance<?>[] runtimeOptions() {
         List<OptionInstance<?>> options = new ArrayList<>(List.of(
+            rtxPerformanceMode(),
             exposureMode(),
             manualEv(),
             exposureLowPercentile(),
@@ -224,6 +225,32 @@ public final class RtVideoOptions {
     public static Component activeToneMapperName(boolean hdr) {
         String name = hdr ? CausticaConfig.Rt.Hdr.TONE_MAPPER.get() : CausticaConfig.Rt.Sdr.TONE_MAPPER.get();
         return Component.translatable("caustica.options.rt.toneMapper." + name);
+    }
+
+    private static OptionInstance<Boolean> rtxPerformanceMode() {
+        BooleanSetting setting = CausticaConfig.Rt.Performance.MODE;
+        return OptionInstance.createBoolean(
+            "caustica.options.rt.performanceMode",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.performanceMode.tooltip")),
+            setting.value(),
+            enabled -> {
+                setting.set(enabled);
+                if (enabled) {
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(2);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(4);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(false);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(false);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                } else {
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(4);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(8);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
+                }
+                RtTerrain.requestFullClear();
+            });
     }
 
     private static OptionInstance<String> exposureMode() {

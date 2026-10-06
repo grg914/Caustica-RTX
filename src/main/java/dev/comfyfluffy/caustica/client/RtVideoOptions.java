@@ -88,6 +88,10 @@ public final class RtVideoOptions {
             dlssNrSkinStructure(),
             dlssNrStyle(),
             dlssNrAutoMask(),
+            scandiShaderPreset(),
+            scandiGradeStrength(),
+            scandiShadowTint(),
+            scandiHighlightWarmth(),
             postFx(),
             postFxSharpen(),
             postFxContrast(),
@@ -435,6 +439,43 @@ public final class RtVideoOptions {
 
     private static OptionInstance<Boolean> dlssNrAutoMask() {
         return bool("caustica.options.rt.dlssNrAutoMask", CausticaConfig.Rt.DlssNr.AUTO_MASK);
+    }
+
+    private static OptionInstance<Boolean> scandiShaderPreset() {
+        BooleanSetting setting = CausticaConfig.Rt.PostFx.SCANDI_SHADER;
+        return OptionInstance.createBoolean(
+            "caustica.options.rt.scandiShader",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.scandiShader.tooltip")),
+            setting.value(),
+            enabled -> {
+                setting.set(enabled);
+                if (enabled) {
+                    CausticaConfig.Rt.PostFx.ENABLED.set(true);
+                    // Exact values from the supplied scandicraft_dercode_balanced profile.
+                    CausticaConfig.Rt.PostFx.SATURATION.set(1.06f);
+                    CausticaConfig.Rt.PostFx.CONTRAST.set(1.04f);
+                    CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.set(0.65f);
+                    CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.set(0.40f);
+                    CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.set(0.30f);
+                    CausticaConfig.Rt.PostFx.VIGNETTE.set(0.0f);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                }
+            });
+    }
+
+    private static OptionInstance<Integer> scandiGradeStrength() {
+        return percentage("caustica.options.rt.scandiGradeStrength",
+                CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH, 0, 100);
+    }
+
+    private static OptionInstance<Integer> scandiShadowTint() {
+        return percentage("caustica.options.rt.scandiShadowTint",
+                CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT, 0, 100);
+    }
+
+    private static OptionInstance<Integer> scandiHighlightWarmth() {
+        return percentage("caustica.options.rt.scandiHighlightWarmth",
+                CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH, 0, 100);
     }
 
     private static OptionInstance<Boolean> postFx() {

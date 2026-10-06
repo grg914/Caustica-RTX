@@ -208,7 +208,9 @@ public final class RtDisplayPipeline {
     public void dispatch(VkCommandBuffer cmd, int width, int height, RtToneMapping.Settings toneMapping,
                          int lutSize, float gamma, float hdrPeakNits, boolean lookEnabled, int lookLutSize,
                          float bloomStrength, boolean postFxEnabled, float postFxSharpen,
-                         float postFxContrast, float postFxSaturation, float postFxVignette) {
+                         float postFxContrast, float postFxSaturation, float postFxVignette,
+                         boolean scandiShaderEnabled, float scandiGradeStrength,
+                         float scandiShadowTint, float scandiHighlightWarmth) {
         try (MemoryStack stack = MemoryStack.stackPush(); RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "display compute")) {
             VK10.vkCmdBindPipeline(cmd, VK10.VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
             VK10.vkCmdBindDescriptorSets(cmd, VK10.VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, stack.longs(descriptorSet), null);
@@ -235,7 +237,11 @@ public final class RtDisplayPipeline {
                     postFxSharpen,
                     postFxContrast,
                     postFxSaturation,
-                    postFxVignette).write(push);
+                    postFxVignette,
+                    scandiShaderEnabled ? 1 : 0,
+                    scandiGradeStrength,
+                    scandiShadowTint,
+                    scandiHighlightWarmth).write(push);
             VK10.vkCmdPushConstants(cmd, pipelineLayout, VK10.VK_SHADER_STAGE_COMPUTE_BIT, 0, push);
             VK10.vkCmdDispatch(cmd, (width + 15) / 16, (height + 15) / 16, 1);
         }

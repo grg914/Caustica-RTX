@@ -111,3 +111,35 @@ game reports Neural Rendering as unavailable while RR, FG/MFG and Reflex remain 
 A build environment with an NVIDIA-authorized compatible DLSS-NR SDK can enable the
 native implementation automatically when the feature-specific header is present.
 No proprietary NVIDIA SDK/runtime files are committed to this repository.
+
+
+## ScandiShader compatibility layer
+
+The optional **ScandiShader RTX Look** is a semantic conversion of the user-supplied
+ScandiCraft shaderpack rather than an Iris/OptiFine compatibility wrapper. Caustica remains
+the Vulkan/path-traced renderer.
+
+Converted components:
+- DERCODE-inspired single-pixel color grade
+- original Scandi preset values: saturation 1.06, contrast 1.04, grade strength 0.65,
+  cool-shadow tint 0.40, warm-highlight tint 0.30
+- existing Caustica bloom/water/physical sky remain the rendering source, avoiding duplicate
+  screen-space lighting passes
+
+Not imported because Caustica already replaces them:
+- shadow maps
+- SSAO/GTAO
+- SSR
+- raster GI/RSM
+- TAA/FXAA/FSR upscaling
+- Iris volumetric cloud/fog renderer passes
+
+This keeps the supplied shader's presentation while preserving Caustica path tracing,
+DLSS Ray Reconstruction, Neural Rendering integration, Frame Generation/MFG and Reflex.
+
+### Credits
+
+The supplied shaderpack identifies **MakeUp Ultra Fast 9.3h** by Javier Garduño as its base
+and explicitly permits modification/forking with credit. Its ScandiCraft derivative also
+credits **DERCODE Project / Mizore** for the visual-grade inspiration. This repository ports
+only the compatible visual-grade behavior and does not redistribute the original Iris shaderpack.

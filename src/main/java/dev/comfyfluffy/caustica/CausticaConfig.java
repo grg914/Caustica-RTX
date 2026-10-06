@@ -62,7 +62,8 @@ public final class CausticaConfig {
             Rt.DlssNr.ENABLED, Rt.DlssNr.INTENSITY, Rt.DlssNr.LOCAL_TONE, Rt.DlssNr.LOCAL_STRUCTURE,
             Rt.DlssNr.GLOBAL_TONE, Rt.DlssNr.SKIN_STRUCTURE, Rt.DlssNr.STYLE, Rt.DlssNr.AUTO_MASK,
             Rt.PostFx.ENABLED, Rt.PostFx.SHARPEN, Rt.PostFx.CONTRAST, Rt.PostFx.SATURATION, Rt.PostFx.VIGNETTE,
-            Rt.Performance.MODE, Rt.Fg.ENABLED, Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
+            Rt.PostFx.SCANDI_SHADER, Rt.PostFx.SCANDI_GRADE_STRENGTH, Rt.PostFx.SCANDI_SHADOW_TINT,
+            Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH, Rt.Performance.MODE, Rt.Fg.ENABLED, Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
             Rt.Exposure.PRE_EXPOSURE, Rt.Tonemap.GAMMA,
             Rt.Sdr.TONE_MAPPER, Rt.Hdr.TONE_MAPPER,
             Rt.FrameStats.ENABLED,
@@ -97,7 +98,8 @@ public final class CausticaConfig {
                 " DLSS Neural Rendering / 3D-Guided Neural Rendering. Requires an RTX 50 GPU plus an NVIDIA-authorized compatible NGX/DLSS-NR runtime.\n"
                         + " The setting is ignored when the native shim reports the feature unavailable.");
         FILE.setComment("post-fx",
-                " Lightweight Caustica-native post-processing. These effects run in the Caustica pipeline and do not require Iris/Sodium.");
+                " Lightweight Caustica-native post-processing. These effects run in the Caustica pipeline and do not require Iris/Sodium.\n"
+                        + " scandi-shader enables the converted ScandiShader DERCODE-style grade without importing incompatible Iris renderer passes.");
         FILE.setComment("performance",
                 " RTX performance preset. When enabled, Video Settings applies low-cost path-tracing values designed to raise real rendered FPS before MFG.");
         FILE.setComment("frame-generation",
@@ -728,6 +730,21 @@ public final class CausticaConfig {
                     clampedFloat("caustica.rt.postFx.saturation", "post-fx.saturation", 1.0f, 0.0f, 2.0f);
             public static final FloatSetting VIGNETTE =
                     clampedFloat("caustica.rt.postFx.vignette", "post-fx.vignette", 0.0f, 0.0f, 1.0f);
+
+            /**
+             * ScandiShader visual profile converted from the user supplied MakeUp Ultra Fast
+             * derivative. Only the single-pixel DERCODE-inspired grade is ported here; screen-
+             * space AO/SSR/TAA/shadow passes are intentionally not duplicated because Caustica
+             * already provides path-traced lighting and DLSS reconstruction.
+             */
+            public static final BooleanSetting SCANDI_SHADER =
+                    bool("caustica.rt.postFx.scandiShader", "post-fx.scandi-shader", false);
+            public static final FloatSetting SCANDI_GRADE_STRENGTH =
+                    clampedFloat("caustica.rt.postFx.scandiGradeStrength", "post-fx.scandi-grade-strength", 0.65f, 0.0f, 1.0f);
+            public static final FloatSetting SCANDI_SHADOW_TINT =
+                    clampedFloat("caustica.rt.postFx.scandiShadowTint", "post-fx.scandi-shadow-tint", 0.40f, 0.0f, 1.0f);
+            public static final FloatSetting SCANDI_HIGHLIGHT_WARMTH =
+                    clampedFloat("caustica.rt.postFx.scandiHighlightWarmth", "post-fx.scandi-highlight-warmth", 0.30f, 0.0f, 1.0f);
 
             private PostFx() {
             }

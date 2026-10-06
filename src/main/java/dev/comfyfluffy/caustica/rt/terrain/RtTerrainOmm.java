@@ -116,6 +116,21 @@ final class RtTerrainOmm {
                 opaqueMicroTriangles += microCount;
                 continue;
             }
+
+            // High-resolution custom packs commonly use large alpha overlays for grass,
+            // foliage and 3D-model details. Keep those triangles in UNKNOWN_OPAQUE so
+            // Vulkan still executes the exact any-hit alpha test. This is deliberately
+            // conservative: an incorrect "fully opaque" micromap classification skips
+            // any-hit entirely and exposes transparent RGB as black triangular wedges.
+            var contents = sprite.contents();
+            if (contents.width() > 256 || contents.height() > 256) {
+                if (sprite.isAnimated()) {
+                    animatedTris++;
+                }
+                unsafeMicroTriangles += microCount;
+                continue;
+            }
+
             if (sprite.isAnimated()) {
                 animatedTris++;
             }

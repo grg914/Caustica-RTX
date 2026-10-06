@@ -740,11 +740,11 @@ public final class CausticaConfig {
             public static final BooleanSetting SCANDI_SHADER =
                     bool("caustica.rt.postFx.scandiShader", "post-fx.scandi-shader", false);
             public static final FloatSetting SCANDI_GRADE_STRENGTH =
-                    clampedFloat("caustica.rt.postFx.scandiGradeStrength", "post-fx.scandi-grade-strength", 0.65f, 0.0f, 1.0f);
+                    clampedFloat("caustica.rt.postFx.scandiGradeStrength", "post-fx.scandi-grade-strength", 0.88f, 0.0f, 1.0f);
             public static final FloatSetting SCANDI_SHADOW_TINT =
-                    clampedFloat("caustica.rt.postFx.scandiShadowTint", "post-fx.scandi-shadow-tint", 0.40f, 0.0f, 1.0f);
+                    clampedFloat("caustica.rt.postFx.scandiShadowTint", "post-fx.scandi-shadow-tint", 0.62f, 0.0f, 1.0f);
             public static final FloatSetting SCANDI_HIGHLIGHT_WARMTH =
-                    clampedFloat("caustica.rt.postFx.scandiHighlightWarmth", "post-fx.scandi-highlight-warmth", 0.30f, 0.0f, 1.0f);
+                    clampedFloat("caustica.rt.postFx.scandiHighlightWarmth", "post-fx.scandi-highlight-warmth", 0.46f, 0.0f, 1.0f);
 
             private PostFx() {
             }

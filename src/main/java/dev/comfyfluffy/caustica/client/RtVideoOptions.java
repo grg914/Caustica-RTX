@@ -6,6 +6,7 @@ import dev.comfyfluffy.caustica.CausticaConfig.BooleanSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.FloatSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.IntSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.StringSetting;
+import dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg;
 import dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr;
 import dev.comfyfluffy.caustica.rt.pipeline.RtToneMapping;
 import dev.comfyfluffy.caustica.rt.terrain.RtTerrain;
@@ -489,12 +490,12 @@ public final class RtVideoOptions {
                 setting.set(enabled);
                 if (enabled) {
                     CausticaConfig.Rt.PostFx.ENABLED.set(true);
-                    // Exact values from the supplied scandicraft_dercode_balanced profile.
-                    CausticaConfig.Rt.PostFx.SATURATION.set(1.06f);
-                    CausticaConfig.Rt.PostFx.CONTRAST.set(1.04f);
-                    CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.set(0.65f);
-                    CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.set(0.40f);
-                    CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.set(0.30f);
+                    // Strong single-pass grade tuned for an obvious ScandiShader on/off difference.
+                    CausticaConfig.Rt.PostFx.SATURATION.set(1.14f);
+                    CausticaConfig.Rt.PostFx.CONTRAST.set(1.10f);
+                    CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.set(0.88f);
+                    CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.set(0.62f);
+                    CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.set(0.46f);
                     CausticaConfig.Rt.PostFx.VIGNETTE.set(0.0f);
                     CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
                 }
@@ -563,7 +564,17 @@ public final class RtVideoOptions {
     }
 
     private static OptionInstance<Boolean> frameGeneration() {
-        return bool("caustica.options.rt.frameGeneration", CausticaConfig.Rt.Fg.ENABLED);
+        BooleanSetting setting = CausticaConfig.Rt.Fg.ENABLED;
+        return OptionInstance.createBoolean(
+            "caustica.options.rt.frameGeneration",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.frameGeneration.tooltip")),
+            setting.value(),
+            enabled -> {
+                setting.set(enabled);
+                if (enabled) {
+                    RtDlssFg.INSTANCE.probeAvailabilityOnce();
+                }
+            });
     }
 
     private static OptionInstance<Integer> frameGenerationMultiplier() {

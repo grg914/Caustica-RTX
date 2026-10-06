@@ -63,6 +63,7 @@ import dev.comfyfluffy.caustica.rt.pipeline.RtSkyLut;
 import dev.comfyfluffy.caustica.rt.pipeline.RtDisplayPipeline;
 import dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg;
 import dev.comfyfluffy.caustica.rt.pipeline.RtDlssRr;
+import dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr;
 import dev.comfyfluffy.caustica.rt.overlay.RtWorldOverlay;
 import dev.comfyfluffy.caustica.rt.pipeline.RtHdrCompositePipeline;
 import dev.comfyfluffy.caustica.rt.pipeline.RtSdrPresentPipeline;
@@ -1371,10 +1372,34 @@ public final class RtComposite {
                 int displayPeakNits = CausticaConfig.Rt.Hdr.effectivePeakNits();
                 displayPipeline.dispatch(cmd, displayW, displayH, RtToneMapping.current(),
                         sdrToneLut.size, CausticaConfig.Rt.Tonemap.GAMMA.value(), displayPeakNits,
-                        true, lookLut.size, LOOK.bloom().strength() / bloomLevels.length);
+                        true, lookLut.size, LOOK.bloom().strength() / bloomLevels.length,
+                        CausticaConfig.Rt.PostFx.ENABLED.value(),
+                        CausticaConfig.Rt.PostFx.SHARPEN.value(),
+                        CausticaConfig.Rt.PostFx.CONTRAST.value(),
+                        CausticaConfig.Rt.PostFx.SATURATION.value(),
+                        CausticaConfig.Rt.PostFx.VIGNETTE.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_SHADER.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.value());
             }
             hdrWrittenThisFrame = CausticaConfig.Rt.Hdr.enabled();
-            VulkanCommandEncoder.memoryBarrier(cmd, stack); // display output visible to debug composite
+            VulkanCommandEncoder.memoryBarrier(cmd, stack); // display output visible to NR/debug
+
+            // DLSS Neural Rendering is a display-referred enhancement pass. It consumes the
+            // tonemapped SDR image plus the existing depth/motion guide buffers, and runs before
+            // the UI/Frame-Generation path. Unsupported SDK/runtime builds return false here and
+            // leave displayImage untouched.
+            if (debugView == 0 && RtDlssNr.INSTANCE.evaluate(
+                    cmd.address(), displayImage, gDepth, gMotion,
+                    renderW, renderH, displayW, displayH)) {
+                VulkanCommandEncoder.memoryBarrier(cmd, stack);
+                RtImage nrOutput = RtDlssNr.INSTANCE.output();
+                if (nrOutput != null) {
+                    blitNrOutput(cmd, stack, nrOutput, displayImage);
+                    VulkanCommandEncoder.memoryBarrier(cmd, stack);
+                }
+            }
 
             if (debugView != 0) {
                 // Debug content is composited only after the real scene has completed trace, RR/fallback,
@@ -1971,6 +1996,23 @@ public final class RtComposite {
             enc.signalSemaphore(presentSem, 0L, 4096L);
         }
         return true;
+    }
+
+    /**
+     * Convert the FP32 DLSS-NR scratch image back into Caustica's display-ready UNORM image.
+     * The dimensions are identical; NEAREST matches NVIDIA's reference implementation and avoids
+     * introducing another reconstruction filter after NR.
+     */
+    private static void blitNrOutput(VkCommandBuffer cmd, MemoryStack stack, RtImage src, RtImage dst) {
+        VkImageBlit.Buffer region = VkImageBlit.calloc(1, stack);
+        region.get(0).srcSubresource().aspectMask(VK10.VK_IMAGE_ASPECT_COLOR_BIT)
+                .mipLevel(0).baseArrayLayer(0).layerCount(1);
+        region.get(0).dstSubresource().aspectMask(VK10.VK_IMAGE_ASPECT_COLOR_BIT)
+                .mipLevel(0).baseArrayLayer(0).layerCount(1);
+        region.get(0).srcOffsets(1).set(src.width, src.height, 1);
+        region.get(0).dstOffsets(1).set(dst.width, dst.height, 1);
+        VK10.vkCmdBlitImage(cmd, src.image, VK10.VK_IMAGE_LAYOUT_GENERAL,
+                dst.image, VK10.VK_IMAGE_LAYOUT_GENERAL, region, VK10.VK_FILTER_NEAREST);
     }
 
     /**

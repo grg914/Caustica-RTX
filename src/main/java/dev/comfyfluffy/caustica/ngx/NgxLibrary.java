@@ -30,6 +30,9 @@ public final class NgxLibrary {
 	private final MethodHandle queryOptimalDlssd;
 	private final MethodHandle createDlssd;
 	private final MethodHandle evaluateDlssd;
+	private final MethodHandle dlssNrAvailable;
+	private final MethodHandle createDlssNr;
+	private final MethodHandle evaluateDlssNr;
 	private final MethodHandle dlssgAvailable;
 	private final MethodHandle dlssgMultiFrameCountMax;
 	private final MethodHandle createDlssg;
@@ -95,6 +98,27 @@ public final class NgxLibrary {
 						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
 						ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
 						ValueLayout.JAVA_INT, ValueLayout.JAVA_FLOAT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+		// DLSS Neural Rendering. Optional: public DLSS SDK builds do not expose this ABI.
+		this.dlssNrAvailable = optionalHandle(lookup, "ngxshim_dlssnr_available",
+				FunctionDescriptor.of(ValueLayout.JAVA_INT));
+		this.createDlssNr = optionalHandle(lookup, "ngxshim_create_dlssnr",
+				FunctionDescriptor.of(ValueLayout.ADDRESS,
+						ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+		this.evaluateDlssNr = optionalHandle(lookup, "ngxshim_evaluate_dlssnr",
+				FunctionDescriptor.of(ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+						ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+						ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+						ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_FLOAT,
+						ValueLayout.JAVA_FLOAT, ValueLayout.JAVA_INT,
+						ValueLayout.JAVA_INT));
 		// DLSS Frame Generation (DLSSG). Optional: a stale shim without these exports still loads (FG off).
 		this.dlssgAvailable = optionalHandle(lookup, "ngxshim_dlssg_available",
 				FunctionDescriptor.of(ValueLayout.JAVA_INT));
@@ -281,6 +305,61 @@ public final class NgxLibrary {
 					worldToViewMatrix, viewToClipMatrix);
 		} catch (Throwable t) {
 			throw new RuntimeException("ngxshim_evaluate_dlssd failed", t);
+		}
+	}
+
+	public boolean hasDlssNr() {
+		return dlssNrAvailable != null && createDlssNr != null && evaluateDlssNr != null;
+	}
+
+	public boolean dlssNrAvailable() {
+		if (dlssNrAvailable == null) {
+			return false;
+		}
+		try {
+			return ((int) dlssNrAvailable.invokeExact()) != 0;
+		} catch (Throwable t) {
+			throw new RuntimeException("ngxshim_dlssnr_available failed", t);
+		}
+	}
+
+	public MemorySegment createDlssNr(long cmd, int displayWidth, int displayHeight) {
+		if (createDlssNr == null) {
+			return MemorySegment.NULL;
+		}
+		try {
+			return (MemorySegment) createDlssNr.invokeExact(cmd, displayWidth, displayHeight);
+		} catch (Throwable t) {
+			throw new RuntimeException("ngxshim_create_dlssnr failed", t);
+		}
+	}
+
+	public int evaluateDlssNr(long cmd, MemorySegment feature,
+	                         long colorView, long colorImage, int colorFormat,
+	                         long depthView, long depthImage, int depthFormat,
+	                         long motionView, long motionImage, int motionFormat,
+	                         long outputView, long outputImage, int outputFormat,
+	                         int displayWidth, int displayHeight,
+	                         int guideWidth, int guideHeight,
+	                         float mvScaleX, float mvScaleY,
+	                         int depthInverted, int reset,
+	                         float intensity, float localTone, float localStructure,
+	                         float globalTone, float skinStructure, int style, int autoMask) {
+		if (evaluateDlssNr == null) {
+			return -1;
+		}
+		try {
+			return (int) evaluateDlssNr.invokeExact(
+					cmd, feature,
+					colorView, colorImage, colorFormat,
+					depthView, depthImage, depthFormat,
+					motionView, motionImage, motionFormat,
+					outputView, outputImage, outputFormat,
+					displayWidth, displayHeight, guideWidth, guideHeight,
+					mvScaleX, mvScaleY, depthInverted, reset,
+					intensity, localTone, localStructure, globalTone, skinStructure, style, autoMask);
+		} catch (Throwable t) {
+			throw new RuntimeException("ngxshim_evaluate_dlssnr failed", t);
 		}
 	}
 

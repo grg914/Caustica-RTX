@@ -58,8 +58,12 @@ public final class CausticaConfig {
         Object[] touch = {
             Rt.ENABLED, Rt.Composite.SPP, Rt.Composite.MAX_BOUNCES, Rt.Terrain.ASYNC_DISPATCH_PER_PASS, Rt.Omm.ENABLED,
             Rt.Lights.RIS_CANDIDATES,
-            Rt.Entities.ENABLED, Rt.Entities.GLOW_ENABLED, Rt.EntityTextures.MAX_TEXTURES, Rt.DlssRr.ENABLED, Rt.Fg.ENABLED,
-            Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
+            Rt.Entities.ENABLED, Rt.Entities.GLOW_ENABLED, Rt.EntityTextures.MAX_TEXTURES, Rt.DlssRr.ENABLED,
+            Rt.DlssNr.ENABLED, Rt.DlssNr.INTENSITY, Rt.DlssNr.LOCAL_TONE, Rt.DlssNr.LOCAL_STRUCTURE,
+            Rt.DlssNr.GLOBAL_TONE, Rt.DlssNr.SKIN_STRUCTURE, Rt.DlssNr.STYLE, Rt.DlssNr.AUTO_MASK,
+            Rt.PostFx.ENABLED, Rt.PostFx.SHARPEN, Rt.PostFx.CONTRAST, Rt.PostFx.SATURATION, Rt.PostFx.VIGNETTE,
+            Rt.PostFx.SCANDI_SHADER, Rt.PostFx.SCANDI_GRADE_STRENGTH, Rt.PostFx.SCANDI_SHADOW_TINT,
+            Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH, Rt.Performance.MODE, Rt.Fg.ENABLED, Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
             Rt.Exposure.PRE_EXPOSURE, Rt.Tonemap.GAMMA,
             Rt.Sdr.TONE_MAPPER, Rt.Hdr.TONE_MAPPER,
             Rt.FrameStats.ENABLED,
@@ -90,6 +94,14 @@ public final class CausticaConfig {
                 " Caustica ray-tracing settings. A matching -Dcaustica.* system property overrides a value here.");
         FILE.setComment("terrain",
                 " Controls terrain loading. Higher limits can load terrain faster but use more CPU and GPU time.");
+        FILE.setComment("dlss-nr",
+                " DLSS Neural Rendering / 3D-Guided Neural Rendering. Requires an RTX 50 GPU plus an NVIDIA-authorized compatible NGX/DLSS-NR runtime.\n"
+                        + " The setting is ignored when the native shim reports the feature unavailable.");
+        FILE.setComment("post-fx",
+                " Lightweight Caustica-native post-processing. These effects run in the Caustica pipeline and do not require Iris/Sodium.\n"
+                        + " scandi-shader enables the converted ScandiShader DERCODE-style grade without importing incompatible Iris renderer passes.");
+        FILE.setComment("performance",
+                " RTX performance preset. When enabled, Video Settings applies low-cost path-tracing values designed to raise real rendered FPS before MFG.");
         FILE.setComment("frame-generation",
                 " DLSS Frame Generation. Requires supported NVIDIA hardware and drivers.\n"
                         + " multi-frame-count sets generated frames per rendered frame (1 = 2x, 2 = 3x, ...).\n"
@@ -674,6 +686,75 @@ public final class CausticaConfig {
                     intChoice("caustica.rt.dlssRr.quality", "dlss-rr.quality", 0, QUALITY_STEPS);
 
             private DlssRr() {
+            }
+        }
+
+        /**
+         * DLSS Neural Rendering / 3D-Guided Neural Rendering.
+         * Kept disabled by default and additionally gated by the optional NGX shim ABI.
+         */
+        public static final class DlssNr {
+            public static final BooleanSetting ENABLED =
+                    bool("caustica.rt.dlssNr", "dlss-nr.enabled", false);
+            public static final FloatSetting INTENSITY =
+                    clampedFloat("caustica.rt.dlssNr.intensity", "dlss-nr.intensity", 1.0f, 0.0f, 1.0f);
+            public static final FloatSetting LOCAL_TONE =
+                    clampedFloat("caustica.rt.dlssNr.localTone", "dlss-nr.local-tone", 1.0f, 0.0f, 1.0f);
+            public static final FloatSetting LOCAL_STRUCTURE =
+                    clampedFloat("caustica.rt.dlssNr.localStructure", "dlss-nr.local-structure", 1.0f, 0.0f, 1.0f);
+            public static final FloatSetting GLOBAL_TONE =
+                    clampedFloat("caustica.rt.dlssNr.globalTone", "dlss-nr.global-tone", 1.0f, 0.0f, 1.0f);
+            public static final FloatSetting SKIN_STRUCTURE =
+                    clampedFloat("caustica.rt.dlssNr.skinStructure", "dlss-nr.skin-structure", 1.0f, 0.0f, 1.0f);
+            public static final IntSetting STYLE =
+                    clampedInt("caustica.rt.dlssNr.style", "dlss-nr.style", 0, 0, 3);
+            public static final BooleanSetting AUTO_MASK =
+                    bool("caustica.rt.dlssNr.autoMask", "dlss-nr.auto-mask", true);
+
+            private DlssNr() {
+            }
+        }
+
+        /**
+         * Caustica-native shader-like post effects. These never replace the Vulkan world renderer.
+         * They are intentionally cheap and suitable for the RTX/DLSS path.
+         */
+        public static final class PostFx {
+            public static final BooleanSetting ENABLED =
+                    bool("caustica.rt.postFx", "post-fx.enabled", true);
+            public static final FloatSetting SHARPEN =
+                    clampedFloat("caustica.rt.postFx.sharpen", "post-fx.sharpen", 0.0f, 0.0f, 1.0f);
+            public static final FloatSetting CONTRAST =
+                    clampedFloat("caustica.rt.postFx.contrast", "post-fx.contrast", 1.0f, 0.5f, 1.5f);
+            public static final FloatSetting SATURATION =
+                    clampedFloat("caustica.rt.postFx.saturation", "post-fx.saturation", 1.0f, 0.0f, 2.0f);
+            public static final FloatSetting VIGNETTE =
+                    clampedFloat("caustica.rt.postFx.vignette", "post-fx.vignette", 0.0f, 0.0f, 1.0f);
+
+            /**
+             * ScandiShader visual profile converted from the user supplied MakeUp Ultra Fast
+             * derivative. Only the single-pixel DERCODE-inspired grade is ported here; screen-
+             * space AO/SSR/TAA/shadow passes are intentionally not duplicated because Caustica
+             * already provides path-traced lighting and DLSS reconstruction.
+             */
+            public static final BooleanSetting SCANDI_SHADER =
+                    bool("caustica.rt.postFx.scandiShader", "post-fx.scandi-shader", false);
+            public static final FloatSetting SCANDI_GRADE_STRENGTH =
+                    clampedFloat("caustica.rt.postFx.scandiGradeStrength", "post-fx.scandi-grade-strength", 0.65f, 0.0f, 1.0f);
+            public static final FloatSetting SCANDI_SHADOW_TINT =
+                    clampedFloat("caustica.rt.postFx.scandiShadowTint", "post-fx.scandi-shadow-tint", 0.40f, 0.0f, 1.0f);
+            public static final FloatSetting SCANDI_HIGHLIGHT_WARMTH =
+                    clampedFloat("caustica.rt.postFx.scandiHighlightWarmth", "post-fx.scandi-highlight-warmth", 0.30f, 0.0f, 1.0f);
+
+            private PostFx() {
+            }
+        }
+
+        public static final class Performance {
+            public static final BooleanSetting MODE =
+                    bool("caustica.rt.performance", "performance.enabled", false);
+
+            private Performance() {
             }
         }
 

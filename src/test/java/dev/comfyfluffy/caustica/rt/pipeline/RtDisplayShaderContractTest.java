@@ -21,7 +21,8 @@ final class RtDisplayShaderContractTest {
         assertTrue(source.contains("exposedAcesCg += sampleBloom(pix, w, h) * max(pc.bloomStrength, 0.0);"));
         assertTrue(source.contains("if (pc.sdrMode == 0 || (pc.hdrEnabled != 0 && pc.hdrMode == 0)) { "
                 + "lookedAcesCg = applyLook(exposedAcesCg); }"));
-        assertTrue(source.contains("? float4(tonemap(lookedAcesCg), 1.0) : float4(localSdrToneMap(exposedAcesCg), 1.0);"));
+        assertTrue(source.contains("float3 sdrColor = pc.sdrMode == 0 ? tonemap(lookedAcesCg) : localSdrToneMap(exposedAcesCg);"));
+        assertTrue(source.contains("outputImage[pix] = float4(applyPostFx(sdrColor, pix, w, h, exposure), 1.0);"));
         assertTrue(source.contains("? float4(tonemapHdr(lookedAcesCg), 1.0) : float4(displayGammaHdr(localHdrToneMap(exposedAcesCg)), 1.0);"));
         assertFalse(source.contains("localSdrToneMap(lookedAcesCg)"));
         assertFalse(source.contains("localHdrToneMap(lookedAcesCg)"));

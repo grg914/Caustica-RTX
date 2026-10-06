@@ -200,6 +200,72 @@ float3 tonemapHdr(float3 lookedAcesCg) {
     return displayGammaHdr(hdrToneLut.SampleLevel(lutTexCoord(uvw, pc.lutSize), 0.0).rgb);
 }
 
+float3 applyScandiShaderGrade(float3 color) {
+    if (pc.scandiShaderEnabled == 0) {
+        return color;
+    }
+
+    float luma = dot(color, BT709_LUMA);
+
+    // Port of the user-supplied ScandiCraft DERCODE Fast grade:
+    // cool shadows, subtly warm highlights, no extra textures or passes.
+    float3 graded = lerp(float3(luma), color, clamp(pc.postFxSaturation, 0.0, 2.0));
+    graded = (graded - 0.5) * clamp(pc.postFxContrast, 0.5, 1.5) + 0.5;
+
+    float shadowMask = 1.0 - smoothstep(0.10, 0.55, luma);
+    float highlightMask = smoothstep(0.55, 0.95, luma);
+
+    graded *= lerp(float3(1.0), float3(0.975, 0.995, 1.035),
+            shadowMask * clamp(pc.scandiShadowTint, 0.0, 1.0));
+    graded *= lerp(float3(1.0), float3(1.025, 1.005, 0.980),
+            highlightMask * clamp(pc.scandiHighlightWarmth, 0.0, 1.0));
+
+    graded = clamp(graded, 0.0, 1.0);
+    return lerp(color, graded, clamp(pc.scandiGradeStrength, 0.0, 1.0));
+}
+
+float3 applyPostFx(float3 codeColor, int2 pix, uint w, uint h, float exposure) {
+    if (pc.postFxEnabled == 0) {
+        return codeColor;
+    }
+
+    float3 color = clamp(codeColor, 0.0, 1.0);
+
+    if (pc.scandiShaderEnabled != 0) {
+        color = applyScandiShaderGrade(color);
+    } else {
+        // Generic post-FX path when the ScandiShader preset is not selected.
+        float luma = dot(color, BT709_LUMA);
+        color = lerp(float3(luma), color, clamp(pc.postFxSaturation, 0.0, 2.0));
+        color = (color - 0.5) * clamp(pc.postFxContrast, 0.5, 1.5) + 0.5;
+    }
+
+    // Optional lightweight scene-detail sharpen. Uniform branch means zero extra
+    // texture reads when the slider is 0 (the performance preset/default).
+    float sharpen = clamp(pc.postFxSharpen, 0.0, 1.0);
+    if (sharpen > 0.0001) {
+        int2 maxPix = int2(int(w) - 1, int(h) - 1);
+        int2 l = int2(max(pix.x - 1, 0), pix.y);
+        int2 r = int2(min(pix.x + 1, maxPix.x), pix.y);
+        int2 u = int2(pix.x, max(pix.y - 1, 0));
+        int2 d = int2(pix.x, min(pix.y + 1, maxPix.y));
+        float centerY = dot(max(rtImage[pix].rgb * exposure, float3(0.0)), float3(0.333333));
+        float neighborY = (
+                dot(max(rtImage[l].rgb * exposure, float3(0.0)), float3(0.333333)) +
+                dot(max(rtImage[r].rgb * exposure, float3(0.0)), float3(0.333333)) +
+                dot(max(rtImage[u].rgb * exposure, float3(0.0)), float3(0.333333)) +
+                dot(max(rtImage[d].rgb * exposure, float3(0.0)), float3(0.333333))) * 0.25;
+        color += (centerY - neighborY) * sharpen * 0.20;
+    }
+
+    float2 uv = (float2(pix) + 0.5) / float2(w, h);
+    float2 centered = uv * 2.0 - 1.0;
+    float vignette = smoothstep(0.35, 1.35, dot(centered, centered));
+    color *= 1.0 - vignette * clamp(pc.postFxVignette, 0.0, 1.0) * 0.35;
+
+    return clamp(color, 0.0, 1.0);
+}
+
 [shader("compute")]
 [numthreads(16, 16, 1)]
 void main(uint3 dispatchId : SV_DispatchThreadID) {
@@ -218,9 +284,10 @@ void main(uint3 dispatchId : SV_DispatchThreadID) {
     if (pc.sdrMode == 0 || (pc.hdrEnabled != 0 && pc.hdrMode == 0)) {
         lookedAcesCg = applyLook(exposedAcesCg);
     }
-    outputImage[pix] = pc.sdrMode == 0
-            ? float4(tonemap(lookedAcesCg), 1.0)
-            : float4(localSdrToneMap(exposedAcesCg), 1.0);
+    float3 sdrColor = pc.sdrMode == 0
+            ? tonemap(lookedAcesCg)
+            : localSdrToneMap(exposedAcesCg);
+    outputImage[pix] = float4(applyPostFx(sdrColor, pix, w, h, exposure), 1.0);
 
     if (pc.hdrEnabled != 0) {
         hdrImage[pix] = pc.hdrMode == 0

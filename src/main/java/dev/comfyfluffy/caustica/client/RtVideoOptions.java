@@ -6,6 +6,7 @@ import dev.comfyfluffy.caustica.CausticaConfig.BooleanSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.FloatSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.IntSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.StringSetting;
+import dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr;
 import dev.comfyfluffy.caustica.rt.pipeline.RtToneMapping;
 import dev.comfyfluffy.caustica.rt.terrain.RtTerrain;
 import java.util.ArrayList;
@@ -65,6 +66,7 @@ public final class RtVideoOptions {
      */
     public static OptionInstance<?>[] runtimeOptions() {
         List<OptionInstance<?>> options = new ArrayList<>(List.of(
+            rtxPerformanceMode(),
             exposureMode(),
             manualEv(),
             exposureLowPercentile(),
@@ -78,6 +80,23 @@ public final class RtVideoOptions {
             particles(),
             waterWaves(),
             dlssQuality(),
+            dlssNeuralRendering(),
+            dlssNrIntensity(),
+            dlssNrLocalTone(),
+            dlssNrLocalStructure(),
+            dlssNrGlobalTone(),
+            dlssNrSkinStructure(),
+            dlssNrStyle(),
+            dlssNrAutoMask(),
+            scandiShaderPreset(),
+            scandiGradeStrength(),
+            scandiShadowTint(),
+            scandiHighlightWarmth(),
+            postFx(),
+            postFxSharpen(),
+            postFxContrast(),
+            postFxSaturation(),
+            postFxVignette(),
             frameGeneration(),
             frameGenerationMultiplier(),
             suspendFrameGenerationInMenus(),
@@ -210,6 +229,32 @@ public final class RtVideoOptions {
     public static Component activeToneMapperName(boolean hdr) {
         String name = hdr ? CausticaConfig.Rt.Hdr.TONE_MAPPER.get() : CausticaConfig.Rt.Sdr.TONE_MAPPER.get();
         return Component.translatable("caustica.options.rt.toneMapper." + name);
+    }
+
+    private static OptionInstance<Boolean> rtxPerformanceMode() {
+        BooleanSetting setting = CausticaConfig.Rt.Performance.MODE;
+        return OptionInstance.createBoolean(
+            "caustica.options.rt.performanceMode",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.performanceMode.tooltip")),
+            setting.value(),
+            enabled -> {
+                setting.set(enabled);
+                if (enabled) {
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(2);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(4);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(false);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(false);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                } else {
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(4);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(8);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
+                }
+                RtTerrain.requestFullClear();
+            });
     }
 
     private static OptionInstance<String> exposureMode() {
@@ -349,6 +394,135 @@ public final class RtVideoOptions {
             new OptionInstance.IntRange(0, steps.size() - 1),
             initialPosition,
             position -> setting.set(steps.get(position)));
+    }
+
+    private static OptionInstance<Boolean> dlssNeuralRendering() {
+        BooleanSetting setting = CausticaConfig.Rt.DlssNr.ENABLED;
+        return OptionInstance.createBoolean(
+            "caustica.options.rt.dlssNeuralRendering",
+            OptionInstance.cachedConstantTooltip(
+                    Component.translatable("caustica.options.rt.dlssNeuralRendering.tooltip")),
+            setting.value() && RtDlssNr.INSTANCE.isAvailable() && CausticaConfig.Rt.DlssRr.ENABLED.value(),
+            enabled -> setting.set(enabled && RtDlssNr.INSTANCE.isAvailable()
+                    && CausticaConfig.Rt.DlssRr.ENABLED.value()));
+    }
+
+    private static OptionInstance<Integer> dlssNrIntensity() {
+        return percentage("caustica.options.rt.dlssNrIntensity", CausticaConfig.Rt.DlssNr.INTENSITY, 0, 100);
+    }
+
+    private static OptionInstance<Integer> dlssNrLocalTone() {
+        return percentage("caustica.options.rt.dlssNrLocalTone", CausticaConfig.Rt.DlssNr.LOCAL_TONE, 0, 100);
+    }
+
+    private static OptionInstance<Integer> dlssNrLocalStructure() {
+        return percentage("caustica.options.rt.dlssNrLocalStructure", CausticaConfig.Rt.DlssNr.LOCAL_STRUCTURE, 0, 100);
+    }
+
+    private static OptionInstance<Integer> dlssNrGlobalTone() {
+        return percentage("caustica.options.rt.dlssNrGlobalTone", CausticaConfig.Rt.DlssNr.GLOBAL_TONE, 0, 100);
+    }
+
+    private static OptionInstance<Integer> dlssNrSkinStructure() {
+        return percentage("caustica.options.rt.dlssNrSkinStructure", CausticaConfig.Rt.DlssNr.SKIN_STRUCTURE, 0, 100);
+    }
+
+    private static OptionInstance<Integer> dlssNrStyle() {
+        IntSetting setting = CausticaConfig.Rt.DlssNr.STYLE;
+        return new OptionInstance<>(
+            "caustica.options.rt.dlssNrStyle",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.dlssNrStyle.tooltip")),
+            (caption, value) -> Options.genericValueLabel(caption, value),
+            new OptionInstance.IntRange(0, 3),
+            Math.clamp(setting.value(), 0, 3),
+            setting::set);
+    }
+
+    private static OptionInstance<Boolean> dlssNrAutoMask() {
+        return bool("caustica.options.rt.dlssNrAutoMask", CausticaConfig.Rt.DlssNr.AUTO_MASK);
+    }
+
+    private static OptionInstance<Boolean> scandiShaderPreset() {
+        BooleanSetting setting = CausticaConfig.Rt.PostFx.SCANDI_SHADER;
+        return OptionInstance.createBoolean(
+            "caustica.options.rt.scandiShader",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.scandiShader.tooltip")),
+            setting.value(),
+            enabled -> {
+                setting.set(enabled);
+                if (enabled) {
+                    CausticaConfig.Rt.PostFx.ENABLED.set(true);
+                    // Exact values from the supplied scandicraft_dercode_balanced profile.
+                    CausticaConfig.Rt.PostFx.SATURATION.set(1.06f);
+                    CausticaConfig.Rt.PostFx.CONTRAST.set(1.04f);
+                    CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.set(0.65f);
+                    CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.set(0.40f);
+                    CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.set(0.30f);
+                    CausticaConfig.Rt.PostFx.VIGNETTE.set(0.0f);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                }
+            });
+    }
+
+    private static OptionInstance<Integer> scandiGradeStrength() {
+        return percentage("caustica.options.rt.scandiGradeStrength",
+                CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH, 0, 100);
+    }
+
+    private static OptionInstance<Integer> scandiShadowTint() {
+        return percentage("caustica.options.rt.scandiShadowTint",
+                CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT, 0, 100);
+    }
+
+    private static OptionInstance<Integer> scandiHighlightWarmth() {
+        return percentage("caustica.options.rt.scandiHighlightWarmth",
+                CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH, 0, 100);
+    }
+
+    private static OptionInstance<Boolean> postFx() {
+        return bool("caustica.options.rt.postFx", CausticaConfig.Rt.PostFx.ENABLED);
+    }
+
+    private static OptionInstance<Integer> postFxSharpen() {
+        return percentage("caustica.options.rt.postFxSharpen", CausticaConfig.Rt.PostFx.SHARPEN, 0, 100);
+    }
+
+    private static OptionInstance<Integer> postFxContrast() {
+        FloatSetting setting = CausticaConfig.Rt.PostFx.CONTRAST;
+        return new OptionInstance<>(
+            "caustica.options.rt.postFxContrast",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.postFxContrast.tooltip")),
+            (caption, value) -> Options.genericValueLabel(caption,
+                    Component.literal(String.format(Locale.ROOT, "%.2f", value / 100.0f))),
+            new OptionInstance.IntRange(50, 150),
+            Math.clamp(Math.round(setting.value() * 100.0f), 50, 150),
+            value -> setting.set(value / 100.0f));
+    }
+
+    private static OptionInstance<Integer> postFxSaturation() {
+        FloatSetting setting = CausticaConfig.Rt.PostFx.SATURATION;
+        return new OptionInstance<>(
+            "caustica.options.rt.postFxSaturation",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.postFxSaturation.tooltip")),
+            (caption, value) -> Options.genericValueLabel(caption, Component.literal(value + "%")),
+            new OptionInstance.IntRange(0, 200),
+            Math.clamp(Math.round(setting.value() * 100.0f), 0, 200),
+            value -> setting.set(value / 100.0f));
+    }
+
+    private static OptionInstance<Integer> postFxVignette() {
+        return percentage("caustica.options.rt.postFxVignette", CausticaConfig.Rt.PostFx.VIGNETTE, 0, 100);
+    }
+
+    private static OptionInstance<Integer> percentage(
+            String captionKey, FloatSetting setting, int min, int max) {
+        return new OptionInstance<>(
+            captionKey,
+            OptionInstance.cachedConstantTooltip(Component.translatable(captionKey + ".tooltip")),
+            (caption, value) -> Options.genericValueLabel(caption, Component.literal(value + "%")),
+            new OptionInstance.IntRange(min, max),
+            Math.clamp(Math.round(setting.value() * 100.0f), min, max),
+            value -> setting.set(value / 100.0f));
     }
 
     private static OptionInstance<Boolean> frameGeneration() {

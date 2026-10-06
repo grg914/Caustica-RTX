@@ -19,6 +19,9 @@
 #include "nvsdk_ngx_params_dlssg.h"
 #include "nvsdk_ngx_helpers_dlssg.h"
 #include "nvsdk_ngx_helpers_dlssg_vk.h"
+#if defined(CAUSTICA_HAS_DLSSNR_SDK)
+#include "nvsdk_ngx_helpers_dlssnr_vk.h"
+#endif
 
 #include <cstring>
 #include <cstdlib>
@@ -43,6 +46,8 @@ static const bool g_verbose = std::getenv("NGXSHIM_VERBOSE") != nullptr;
 static const char* kProjectId = "b6f1e9c2-7a44-4d1e-9b3a-1f2c3d4e5a6b";
 
 static NVSDK_NGX_Parameter* g_capabilityParams = nullptr;
+static VkInstance g_instance = VK_NULL_HANDLE;
+static VkPhysicalDevice g_physicalDevice = VK_NULL_HANDLE;
 static VkDevice g_device = VK_NULL_HANDLE;
 static int g_lastResult = 0;
 
@@ -139,6 +144,8 @@ NGX_SHIM_EXPORT int ngxshim_init(unsigned long long appId, const wchar_t* dataPa
     NGX_LOG("init: enter appId=%llu dataPath=%p instance=%p physicalDevice=%p device=%p getInstanceProcAddr=%p getDeviceProcAddr=%p featureDllPath=%p",
             appId, (void*) dataPath, (void*) instance, (void*) physicalDevice, (void*) device,
             getInstanceProcAddr, getDeviceProcAddr, (void*) featureDllPath);
+    g_instance = instance;
+    g_physicalDevice = physicalDevice;
     g_device = device;
 
     NVSDK_NGX_FeatureCommonInfo info;
@@ -486,6 +493,146 @@ NGX_SHIM_EXPORT int ngxshim_evaluate_dlssd(VkCommandBuffer cmd, void* feature,
     return (int) r;
 }
 
+// DLSS Neural Rendering (3D-Guided Neural Rendering). The public DLSS SDK currently
+// used by CI does not provide the feature-specific helper header. Keep this ABI exported in
+// every build so Java can probe it safely; authorized SDK builds compile the real path.
+NGX_SHIM_EXPORT int ngxshim_dlssnr_available() {
+#if defined(CAUSTICA_HAS_DLSSNR_SDK)
+    if (!g_capabilityParams || !g_instance || !g_physicalDevice) {
+        return 0;
+    }
+
+    NVSDK_NGX_FeatureCommonInfo commonInfo{};
+    NVSDK_NGX_FeatureDiscoveryInfo info{};
+    info.SDKVersion = NVSDK_NGX_Version_API;
+    info.FeatureID = NVSDK_NGX_Feature_DLSSNR;
+    info.Identifier.IdentifierType = NVSDK_NGX_Application_Identifier_Type_Project_Id;
+    info.Identifier.v.ProjectDesc.ProjectId = kProjectId;
+    info.Identifier.v.ProjectDesc.EngineType = NVSDK_NGX_ENGINE_TYPE_CUSTOM;
+    info.Identifier.v.ProjectDesc.EngineVersion = "1.0";
+    info.ApplicationDataPath = L" ";
+    info.FeatureInfo = &commonInfo;
+
+    NVSDK_NGX_FeatureRequirement requirement{};
+    NVSDK_NGX_Result r = NVSDK_NGX_VULKAN_GetFeatureRequirements(
+            g_instance, g_physicalDevice, &info, &requirement);
+    g_lastResult = (int) r;
+    return NVSDK_NGX_SUCCEED(r)
+            && requirement.FeatureSupported == NVSDK_NGX_FeatureSupportResult_Supported;
+#else
+    return 0;
+#endif
+}
+
+NGX_SHIM_EXPORT void* ngxshim_create_dlssnr(
+        VkCommandBuffer cmd,
+        unsigned int displayWidth,
+        unsigned int displayHeight) {
+#if defined(CAUSTICA_HAS_DLSSNR_SDK)
+    if (!g_capabilityParams || !g_device || !cmd || displayWidth == 0 || displayHeight == 0) {
+        g_lastResult = (int) NVSDK_NGX_Result_FAIL_NotInitialized;
+        return nullptr;
+    }
+
+    NVSDK_NGX_DLSSNR_Create_Params createParams{};
+    createParams.Width = displayWidth;
+    createParams.Height = displayHeight;
+
+    NVSDK_NGX_Handle* handle = nullptr;
+    NVSDK_NGX_Result r = NGX_VULKAN_CREATE_DLSSNR_EXT1(
+            g_device, cmd, 1, 1, &handle, g_capabilityParams, &createParams);
+    g_lastResult = (int) r;
+    if (NVSDK_NGX_FAILED(r) || !handle) {
+        return nullptr;
+    }
+
+    DlssFeature* feature = (DlssFeature*) std::malloc(sizeof(DlssFeature));
+    feature->handle = handle;
+    feature->params = g_capabilityParams;
+    feature->ownsParams = false;
+    return feature;
+#else
+    (void) cmd; (void) displayWidth; (void) displayHeight;
+    g_lastResult = -1;
+    return nullptr;
+#endif
+}
+
+NGX_SHIM_EXPORT int ngxshim_evaluate_dlssnr(
+        VkCommandBuffer cmd, void* feature,
+        VkImageView colorView, VkImage colorImage, int colorFormat,
+        VkImageView depthView, VkImage depthImage, int depthFormat,
+        VkImageView motionView, VkImage motionImage, int motionFormat,
+        VkImageView outputView, VkImage outputImage, int outputFormat,
+        unsigned int displayWidth, unsigned int displayHeight,
+        unsigned int guideWidth, unsigned int guideHeight,
+        float mvScaleX, float mvScaleY,
+        int depthInverted, int reset,
+        float intensity, float localTone, float localStructure,
+        float globalTone, float skinStructure, int style, int autoMask) {
+#if defined(CAUSTICA_HAS_DLSSNR_SDK)
+    DlssFeature* f = (DlssFeature*) feature;
+    if (!f || !f->handle || !f->params) {
+        return -1;
+    }
+
+    NVSDK_NGX_Resource_VK color = makeImageResource(
+            colorView, colorImage, colorFormat, displayWidth, displayHeight,
+            VK_IMAGE_ASPECT_COLOR_BIT, false);
+    NVSDK_NGX_Resource_VK depth = makeImageResource(
+            depthView, depthImage, depthFormat, guideWidth, guideHeight,
+            VK_IMAGE_ASPECT_COLOR_BIT, false);
+    NVSDK_NGX_Resource_VK motion = makeImageResource(
+            motionView, motionImage, motionFormat, guideWidth, guideHeight,
+            VK_IMAGE_ASPECT_COLOR_BIT, false);
+    NVSDK_NGX_Resource_VK output = makeImageResource(
+            outputView, outputImage, outputFormat, displayWidth, displayHeight,
+            VK_IMAGE_ASPECT_COLOR_BIT, true);
+
+    NVSDK_NGX_VK_DLSSNR_Eval_Params eval{};
+    eval.pInColor = &color;
+    eval.pInDepth = &depth;
+    eval.pInMVec = &motion;
+    eval.pInOutput = &output;
+    eval.pInControlMask = nullptr;
+    eval.InEnabled = 1;
+    eval.InReset = reset ? 1 : 0;
+    eval.InIntensity = intensity;
+    eval.InLocalToneStrength = localTone;
+    eval.InLocalStructureStrength = localStructure;
+    eval.InGlobalToneStrength = globalTone;
+    eval.InSkinStructureStrength = skinStructure;
+    eval.InStyle = (unsigned int) style;
+    eval.InUseAutoMask = autoMask ? 1 : 0;
+    eval.InMVecScaleX = mvScaleX;
+    eval.InMVecScaleY = mvScaleY;
+    eval.InDepthInverted = depthInverted ? 1 : 0;
+    eval.InColorSubrectSize = { displayWidth, displayHeight };
+    eval.InOutputSubrectSize = { displayWidth, displayHeight };
+    eval.InDepthSubrectSize = { guideWidth, guideHeight };
+    eval.InMVecSubrectSize = { guideWidth, guideHeight };
+
+    NVSDK_NGX_Result r = NGX_VULKAN_EVALUATE_DLSSNR_EXT(
+            cmd, f->handle, f->params, &eval);
+    g_lastResult = (int) r;
+    return (int) r;
+#else
+    (void) cmd; (void) feature;
+    (void) colorView; (void) colorImage; (void) colorFormat;
+    (void) depthView; (void) depthImage; (void) depthFormat;
+    (void) motionView; (void) motionImage; (void) motionFormat;
+    (void) outputView; (void) outputImage; (void) outputFormat;
+    (void) displayWidth; (void) displayHeight;
+    (void) guideWidth; (void) guideHeight;
+    (void) mvScaleX; (void) mvScaleY;
+    (void) depthInverted; (void) reset;
+    (void) intensity; (void) localTone; (void) localStructure;
+    (void) globalTone; (void) skinStructure; (void) style; (void) autoMask;
+    g_lastResult = -1;
+    return -1;
+#endif
+}
+
 // 1 if DLSS Frame Generation is available on this system, else 0.
 NGX_SHIM_EXPORT int ngxshim_dlssg_available() {
     if (!g_capabilityParams) {
@@ -648,6 +795,8 @@ NGX_SHIM_EXPORT void ngxshim_shutdown(VkDevice device) {
         g_capabilityParams = nullptr;
     }
     NVSDK_NGX_VULKAN_Shutdown1(device ? device : g_device);
+    g_instance = VK_NULL_HANDLE;
+    g_physicalDevice = VK_NULL_HANDLE;
     g_device = VK_NULL_HANDLE;
     NGX_LOG("shutdown: exit");
 }

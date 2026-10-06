@@ -1,11 +1,9 @@
 {
 	"caustica.options.rt.header": "Ray Tracing",
-
 	"caustica.options.rt.exposureMode": "Exposure",
 	"caustica.options.rt.exposureMode.tooltip": "How the ray-traced image is mapped to display brightness. Auto adapts to scene luminance; Manual uses the exposure value directly.",
 	"caustica.options.rt.exposureMode.auto": "Auto",
 	"caustica.options.rt.exposureMode.manual": "Manual",
-
 	"caustica.options.rt.manualEv": "Exposure EV",
 	"caustica.options.rt.manualEv.tooltip": "Exposure compensation in stops. In Manual, this is the fixed exposure. In Auto, this biases the auto exposure brighter or darker.",
 	"caustica.options.rt.exposureLowPercentile": "Shadow Percentile",
@@ -14,38 +12,27 @@
 	"caustica.options.rt.exposureHighPercentile.tooltip": "Ignores brighter histogram samples above this percentile.",
 	"caustica.options.rt.preExposure": "Pre-Exposure",
 	"caustica.options.rt.preExposure.tooltip": "Scale ray-traced radiance before the fp16 write and remove the same scale before display mapping.",
-
 	"caustica.options.rt.gamma": "Gamma",
 	"caustica.options.rt.gamma.tooltip": "Post-transform luminance gamma. Values below 1.00 brighten shadows and midtones while preserving black, white, and color ratios.",
-
 	"caustica.options.rt.spp": "Samples Per Pixel",
 	"caustica.options.rt.spp.tooltip": "Path-tracing samples taken per pixel each frame. Higher is cleaner but more demanding.",
-
 	"caustica.options.rt.maxBounces": "Path Bounces",
 	"caustica.options.rt.maxBounces.tooltip": "Maximum number of secondary path-tracing bounces after the primary hit. Higher captures more indirect light but costs more.",
-
 	"caustica.options.rt.risCandidates": "RIS Light Candidates",
 	"caustica.options.rt.risCandidates.tooltip": "Emitter candidates tested per diffuse vertex. Higher values reduce torch and glow-light noise but cost more ray-tracing work; zero disables RIS.",
 	"caustica.options.rt.risCandidates.off": "Off",
-
 	"caustica.options.rt.entities": "Ray-Traced Entities",
 	"caustica.options.rt.entities.tooltip": "Include entities and block entities in the ray-traced scene.",
-
 	"caustica.options.rt.particles": "Ray-Traced Particles",
 	"caustica.options.rt.particles.tooltip": "Draw particles as camera-ray billboards inside the traced scene.",
-
 	"caustica.options.rt.glow": "Entity Glow Outline",
 	"caustica.options.rt.glow.tooltip": "Draw the vanilla Glowing-effect outline (through walls) around glowing entities.",
-
 	"caustica.options.rt.waterWaves": "Animated Water",
 	"caustica.options.rt.waterWaves.tooltip": "Animate water-surface normals for moving wave highlights.",
-
 	"caustica.options.rt.hdr": "HDR Output",
 	"caustica.options.rt.hdr.tooltip": "Recreate the swapchain for HDR (ST.2084/PQ) or native SDR output. Applied at the next frame boundary.",
-
 	"caustica.options.rt.hdrUiBrightness": "HDR UI Brightness",
 	"caustica.options.rt.hdrUiBrightness.tooltip": "Absolute brightness (in nits) assigned to SDR-authored UI on an HDR display.",
-
 	"caustica.options.rt.hdrPeak": "HDR Peak Brightness",
 	"caustica.options.rt.hdrPeak.tooltip": "Absolute brightness (in nits) highlights roll off toward. Set to your display's peak HDR brightness; the control moves in 50-nit increments.",
 	"caustica.options.rt.toneMappingMenu": "Exposure & Tone Mapping…",
@@ -131,7 +118,6 @@
 	"caustica.options.rt.psychov24Contrast.tooltip": "PsychoV24 cone-response contrast.",
 	"caustica.options.rt.psychov24Purity": "Color Purity",
 	"caustica.options.rt.psychov24Purity.tooltip": "PsychoV24 adaptive chroma purity.",
-
 	"caustica.options.rt.dlssQuality": "DLSS Quality",
 	"caustica.options.rt.dlssQuality.tooltip": "DLSS Ray Reconstruction quality mode. Lower-quality modes render fewer pixels and upscale more aggressively for higher framerates; higher-quality modes render more pixels for a sharper image. Only affects the image when DLSS Ray Reconstruction is enabled.",
 	"caustica.options.rt.dlssQuality.3": "Ultra Performance",
@@ -139,7 +125,6 @@
 	"caustica.options.rt.dlssQuality.1": "Balanced",
 	"caustica.options.rt.dlssQuality.2": "Quality",
 	"caustica.options.rt.dlssQuality.5": "DLAA",
-
 	"caustica.options.rt.frameGeneration": "DLSS Frame Generation",
 	"caustica.options.rt.frameGeneration.tooltip": "Generate additional display frames between rendered frames. Requires a supported GeForce RTX GPU and driver.",
 	"caustica.options.rt.frameGenerationMultiplier": "Frame Generation Multiplier",
@@ -150,7 +135,6 @@
 	"caustica.options.rt.reflex.tooltip": "Enable low-latency frame pacing and latency markers through VK_NV_low_latency2.",
 	"caustica.options.rt.reflexBoost": "Reflex Low Latency Boost",
 	"caustica.options.rt.reflexBoost.tooltip": "Keep GPU clocks elevated while Reflex is active for the lowest latency. Uses more power.",
-
 	"caustica.options.rt.debugView": "Debug View",
 	"caustica.options.rt.debugView.tooltip": "Inspect ray-tracing buffers and exposure diagnostics after the normal frame has rendered.",
 	"caustica.options.rt.debugView.0": "Off",
@@ -162,5 +146,41 @@
 	"caustica.options.rt.debugView.6": "Specular",
 	"caustica.options.rt.debugView.7": "Specular Motion",
 	"caustica.options.rt.debugView.8": "Exposure False Color",
-	"caustica.options.rt.debugView.9": "Metering Weight"
+	"caustica.options.rt.debugView.9": "Metering Weight",
+	"caustica.options.rt.dlssNeuralRendering": "DLSS Neural Rendering",
+	"caustica.options.rt.dlssNeuralRendering.tooltip": "DLSS 3D-Guided Neural Rendering. Requires a compatible NVIDIA-authorized DLSS-NR runtime; unavailable builds keep this disabled.",
+	"caustica.options.rt.dlssNrIntensity": "NR Intensity",
+	"caustica.options.rt.dlssNrIntensity.tooltip": "Overall Neural Rendering effect strength.",
+	"caustica.options.rt.dlssNrLocalTone": "NR Local Tone",
+	"caustica.options.rt.dlssNrLocalTone.tooltip": "Controls local tone enhancement strength.",
+	"caustica.options.rt.dlssNrLocalStructure": "NR Local Structure",
+	"caustica.options.rt.dlssNrLocalStructure.tooltip": "Controls local structural detail enhancement.",
+	"caustica.options.rt.dlssNrGlobalTone": "NR Global Tone",
+	"caustica.options.rt.dlssNrGlobalTone.tooltip": "Controls global tone enhancement.",
+	"caustica.options.rt.dlssNrSkinStructure": "NR Skin Structure",
+	"caustica.options.rt.dlssNrSkinStructure.tooltip": "Controls skin/material structure enhancement.",
+	"caustica.options.rt.dlssNrStyle": "NR Style",
+	"caustica.options.rt.dlssNrStyle.tooltip": "Selects the Neural Rendering style index supplied to NVIDIA NGX.",
+	"caustica.options.rt.dlssNrAutoMask": "NR Auto Mask",
+	"caustica.options.rt.dlssNrAutoMask.tooltip": "Lets DLSS Neural Rendering generate its own control mask.",
+	"caustica.options.rt.postFx": "Caustica Post FX",
+	"caustica.options.rt.postFx.tooltip": "RTX-safe shader-like post processing integrated directly into Caustica.",
+	"caustica.options.rt.postFxSharpen": "Post FX Sharpen",
+	"caustica.options.rt.postFxSharpen.tooltip": "Lightweight scene-detail sharpening. Zero avoids the extra neighbor reads.",
+	"caustica.options.rt.postFxContrast": "Post FX Contrast",
+	"caustica.options.rt.postFxContrast.tooltip": "Display-space contrast adjustment.",
+	"caustica.options.rt.postFxSaturation": "Post FX Saturation",
+	"caustica.options.rt.postFxSaturation.tooltip": "Display-space color saturation.",
+	"caustica.options.rt.postFxVignette": "Post FX Vignette",
+	"caustica.options.rt.postFxVignette.tooltip": "Darkens the outer image edges.",
+	"caustica.options.rt.performanceMode": "RTX Performance Mode",
+	"caustica.options.rt.performanceMode.tooltip": "Reduces ray-tracing cost for higher real FPS before Frame Generation: 1 SPP, 2 bounces, 4 RIS candidates, particles/water waves off and zero-cost sharpen.",
+	"caustica.options.rt.scandiShader": "ScandiShader RTX Look",
+	"caustica.options.rt.scandiShader.tooltip": "Converted ScandiCraft visual grade from the supplied MakeUp Ultra Fast shaderpack. Keeps Caustica path tracing/DLSS and ports only compatible image styling.",
+	"caustica.options.rt.scandiGradeStrength": "Scandi Grade Strength",
+	"caustica.options.rt.scandiGradeStrength.tooltip": "Blend amount for the converted ScandiShader DERCODE-style color grade.",
+	"caustica.options.rt.scandiShadowTint": "Scandi Cool Shadows",
+	"caustica.options.rt.scandiShadowTint.tooltip": "Strength of the cool blue/cyan tint applied to darker tones.",
+	"caustica.options.rt.scandiHighlightWarmth": "Scandi Warm Highlights",
+	"caustica.options.rt.scandiHighlightWarmth.tooltip": "Strength of the subtle warm tint applied to highlights."
 }

@@ -120,11 +120,15 @@ ScandiCraft shaderpack rather than an Iris/OptiFine compatibility wrapper. Caust
 the Vulkan/path-traced renderer.
 
 Converted components:
-- DERCODE-inspired single-pixel color grade
-- original Scandi preset values: saturation 1.06, contrast 1.04, grade strength 0.65,
-  cool-shadow tint 0.40, warm-highlight tint 0.30
-- existing Caustica bloom/water/physical sky remain the rendering source, avoiding duplicate
-  screen-space lighting passes
+- exact single-pixel DERCODE Fast Grade logic from the supplied ScandiShader derivative
+- exact `scandicraft_dercode_balanced` grade values: saturation 1.06, contrast 1.04,
+  grade strength 0.65, cool-shadow tint 0.40, warm-highlight tint 0.30
+- existing Caustica bloom, path-traced reflections/refraction, animated water and physical sky
+  remain the rendering source, avoiding duplicate raster/screen-space lighting passes
+
+Not yet reproduced pixel-for-pixel:
+- the supplied shaderpack's dedicated volumetric-light/fog implementation and cloud renderer.
+  Reproducing those would require native Caustica volumetric passes rather than loading Iris GLSL.
 
 Not imported because Caustica already replaces them:
 - shadow maps

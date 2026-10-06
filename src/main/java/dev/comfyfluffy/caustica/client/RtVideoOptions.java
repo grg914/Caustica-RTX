@@ -41,6 +41,18 @@ public final class RtVideoOptions {
         }
     }
 
+    private record PerformanceSnapshot(
+            int spp,
+            int maxBounces,
+            int risCandidates,
+            boolean particles,
+            boolean glow,
+            boolean waterWaves,
+            float sharpen) {
+    }
+
+    private static PerformanceSnapshot performanceSnapshot;
+
     private RtVideoOptions() {
     }
 
@@ -240,6 +252,18 @@ public final class RtVideoOptions {
             enabled -> {
                 setting.set(enabled);
                 if (enabled) {
+                    // Treat Performance Mode as a reversible preset rather than destructive settings.
+                    // Save the user's live tuning once, then restore it when the preset is turned off.
+                    if (performanceSnapshot == null) {
+                        performanceSnapshot = new PerformanceSnapshot(
+                                CausticaConfig.Rt.Composite.SPP.value(),
+                                CausticaConfig.Rt.Composite.MAX_BOUNCES.value(),
+                                CausticaConfig.Rt.Lights.RIS_CANDIDATES.value(),
+                                CausticaConfig.Rt.Entities.PARTICLES_ENABLED.value(),
+                                CausticaConfig.Rt.Entities.GLOW_ENABLED.value(),
+                                CausticaConfig.Rt.Composite.WATER_WAVES.value(),
+                                CausticaConfig.Rt.PostFx.SHARPEN.value());
+                    }
                     CausticaConfig.Rt.Composite.SPP.set(1);
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(1);
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(2);
@@ -247,13 +271,24 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Entities.GLOW_ENABLED.set(false);
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(false);
                     CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                } else if (performanceSnapshot != null) {
+                    CausticaConfig.Rt.Composite.SPP.set(performanceSnapshot.spp());
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(performanceSnapshot.maxBounces());
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(performanceSnapshot.risCandidates());
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(performanceSnapshot.particles());
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(performanceSnapshot.glow());
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(performanceSnapshot.waterWaves());
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(performanceSnapshot.sharpen());
+                    performanceSnapshot = null;
                 } else {
-                    CausticaConfig.Rt.Composite.SPP.set(1);
-                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(4);
-                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(8);
-                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
-                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
-                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
+                    // Session started with the preset already enabled: fall back to source defaults.
+                    CausticaConfig.Rt.Composite.SPP.set(CausticaConfig.Rt.Composite.SPP.defaultValue());
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(CausticaConfig.Rt.Composite.MAX_BOUNCES.defaultValue());
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(CausticaConfig.Rt.Lights.RIS_CANDIDATES.defaultValue());
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(CausticaConfig.Rt.Entities.PARTICLES_ENABLED.defaultValue());
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(CausticaConfig.Rt.Entities.GLOW_ENABLED.defaultValue());
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(CausticaConfig.Rt.Composite.WATER_WAVES.defaultValue());
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(CausticaConfig.Rt.PostFx.SHARPEN.defaultValue());
                 }
                 RtTerrain.requestFullClear();
             });

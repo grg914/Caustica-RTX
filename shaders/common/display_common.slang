@@ -102,6 +102,10 @@ public struct DisplayPush {
     public float postFxContrast;
     public float postFxSaturation;
     public float postFxVignette;
+    public int scandiShaderEnabled;
+    public float scandiGradeStrength;
+    public float scandiShadowTint;
+    public float scandiHighlightWarmth;
 };
 
 public struct BloomPush {

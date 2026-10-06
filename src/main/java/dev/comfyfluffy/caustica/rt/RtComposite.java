@@ -1371,10 +1371,32 @@ public final class RtComposite {
                 int displayPeakNits = CausticaConfig.Rt.Hdr.effectivePeakNits();
                 displayPipeline.dispatch(cmd, displayW, displayH, RtToneMapping.current(),
                         sdrToneLut.size, CausticaConfig.Rt.Tonemap.GAMMA.value(), displayPeakNits,
-                        true, lookLut.size, LOOK.bloom().strength() / bloomLevels.length);
+                        true, lookLut.size, LOOK.bloom().strength() / bloomLevels.length,
+                        CausticaConfig.Rt.PostFx.ENABLED.value(),
+                        CausticaConfig.Rt.PostFx.SHARPEN.value(),
+                        CausticaConfig.Rt.PostFx.CONTRAST.value(),
+                        CausticaConfig.Rt.PostFx.SATURATION.value(),
+                        CausticaConfig.Rt.PostFx.VIGNETTE.value());
             }
             hdrWrittenThisFrame = CausticaConfig.Rt.Hdr.enabled();
-            VulkanCommandEncoder.memoryBarrier(cmd, stack); // display output visible to debug composite
+            VulkanCommandEncoder.memoryBarrier(cmd, stack); // display output visible to NR/debug
+
+            // DLSS Neural Rendering is a display-referred enhancement pass. It consumes the
+            // tonemapped SDR image plus the existing depth/motion guide buffers, and runs before
+            // the UI/Frame-Generation path. Unsupported SDK/runtime builds return false here and
+            // leave displayImage untouched.
+            if (debugView == 0 && RtDlssNr.INSTANCE.evaluate(
+                    cmd.address(), displayImage, gDepth, gMotion,
+                    renderW, renderH, displayW, displayH)) {
+                VulkanCommandEncoder.memoryBarrier(cmd, stack);
+                RtImage nrOutput = RtDlssNr.INSTANCE.output();
+                if (nrOutput != null) {
+                    VK10.vkCmdCopyImage(cmd, nrOutput.image, VK10.VK_IMAGE_LAYOUT_GENERAL,
+                            displayImage.image, VK10.VK_IMAGE_LAYOUT_GENERAL,
+                            copyRegion(stack, displayW, displayH));
+                    VulkanCommandEncoder.memoryBarrier(cmd, stack);
+                }
+            }
 
             if (debugView != 0) {
                 // Debug content is composited only after the real scene has completed trace, RR/fallback,

@@ -494,25 +494,10 @@ NGX_SHIM_EXPORT int ngxshim_evaluate_dlssd(VkCommandBuffer cmd, void* feature,
 // every build so Java can probe it safely; authorized SDK builds compile the real path.
 NGX_SHIM_EXPORT int ngxshim_dlssnr_available() {
 #if defined(CAUSTICA_HAS_DLSSNR_SDK)
-    if (!g_capabilityParams) {
-        return 0;
-    }
-    NVSDK_NGX_FeatureRequirement requirement{};
-    NVSDK_NGX_FeatureCommonInfo commonInfo{};
-    NVSDK_NGX_FeatureDiscoveryInfo discovery{};
-    discovery.SDKVersion = NVSDK_NGX_Version_API;
-    discovery.FeatureID = NVSDK_NGX_Feature_DLSSNR;
-    discovery.Identifier.IdentifierType = NVSDK_NGX_Application_Identifier_Type_Project_Id;
-    discovery.Identifier.v.ProjectDesc.ProjectId = kProjectId;
-    discovery.Identifier.v.ProjectDesc.EngineType = NVSDK_NGX_ENGINE_TYPE_CUSTOM;
-    discovery.Identifier.v.ProjectDesc.EngineVersion = "1.0";
-    discovery.ApplicationDataPath = L" ";
-    discovery.FeatureInfo = &commonInfo;
-    NVSDK_NGX_Result r = NVSDK_NGX_VULKAN_GetFeatureRequirements(
-            VK_NULL_HANDLE, VK_NULL_HANDLE, &discovery, &requirement);
-    g_lastResult = (int) r;
-    return NVSDK_NGX_SUCCEED(r)
-            && requirement.FeatureSupported == NVSDK_NGX_FeatureSupportResult_Supported;
+    // The feature-specific SDK is compiled in and the shared NGX capability
+    // parameter block exists. Feature creation remains the authoritative
+    // GPU/driver/application capability test.
+    return g_capabilityParams != nullptr ? 1 : 0;
 #else
     return 0;
 #endif

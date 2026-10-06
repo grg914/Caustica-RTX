@@ -66,5 +66,7 @@
 	"caustica.options.rt.postFxSaturation": "Saturation Post FX",
 	"caustica.options.rt.postFxSaturation.tooltip": "Réglage de la saturation des couleurs.",
 	"caustica.options.rt.postFxVignette": "Vignettage Post FX",
-	"caustica.options.rt.postFxVignette.tooltip": "Assombrit légèrement les bords de l'image."
+	"caustica.options.rt.postFxVignette.tooltip": "Assombrit légèrement les bords de l'image.",
+	"caustica.options.rt.performanceMode": "Mode performance RTX",
+	"caustica.options.rt.performanceMode.tooltip": "Réduit le coût du ray tracing pour augmenter les FPS réellement rendus avant la génération d'images : 1 SPP, 2 rebonds, 4 candidats RIS, particules/vagues désactivées et netteté sans coût."
 }

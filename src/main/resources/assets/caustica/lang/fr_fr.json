@@ -68,5 +68,13 @@
 	"caustica.options.rt.postFxVignette": "Vignettage Post FX",
 	"caustica.options.rt.postFxVignette.tooltip": "Assombrit légèrement les bords de l'image.",
 	"caustica.options.rt.performanceMode": "Mode performance RTX",
-	"caustica.options.rt.performanceMode.tooltip": "Réduit le coût du ray tracing pour augmenter les FPS réellement rendus avant la génération d'images : 1 SPP, 2 rebonds, 4 candidats RIS, particules/vagues désactivées et netteté sans coût."
+	"caustica.options.rt.performanceMode.tooltip": "Réduit le coût du ray tracing pour augmenter les FPS réellement rendus avant la génération d'images : 1 SPP, 2 rebonds, 4 candidats RIS, particules/vagues désactivées et netteté sans coût.",
+	"caustica.options.rt.scandiShader": "Look RTX ScandiShader",
+	"caustica.options.rt.scandiShader.tooltip": "Conversion du rendu visuel ScandiCraft depuis le shaderpack MakeUp Ultra Fast fourni. Garde le path tracing/DLSS de Caustica et porte uniquement les effets compatibles.",
+	"caustica.options.rt.scandiGradeStrength": "Force du grade Scandi",
+	"caustica.options.rt.scandiGradeStrength.tooltip": "Intensité du color grading ScandiShader inspiré DERCODE.",
+	"caustica.options.rt.scandiShadowTint": "Ombres froides Scandi",
+	"caustica.options.rt.scandiShadowTint.tooltip": "Intensité de la teinte bleu/cyan appliquée aux tons sombres.",
+	"caustica.options.rt.scandiHighlightWarmth": "Hautes lumières chaudes",
+	"caustica.options.rt.scandiHighlightWarmth.tooltip": "Intensité de la légère teinte chaude appliquée aux hautes lumières."
 }

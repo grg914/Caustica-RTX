@@ -490,7 +490,7 @@ public final class RtVideoOptions {
                 setting.set(enabled);
                 if (enabled) {
                     CausticaConfig.Rt.PostFx.ENABLED.set(true);
-                    // Exact values from the supplied scandicraft_dercode_balanced profile.
+                    // Strong single-pass grade tuned for an obvious ScandiShader on/off difference.
                     CausticaConfig.Rt.PostFx.SATURATION.set(1.14f);
                     CausticaConfig.Rt.PostFx.CONTRAST.set(1.10f);
                     CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.set(0.88f);

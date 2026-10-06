@@ -174,5 +174,13 @@
 	"caustica.options.rt.postFxVignette": "Post FX Vignette",
 	"caustica.options.rt.postFxVignette.tooltip": "Darkens the outer image edges.",
 	"caustica.options.rt.performanceMode": "RTX Performance Mode",
-	"caustica.options.rt.performanceMode.tooltip": "Reduces ray-tracing cost for higher real FPS before Frame Generation: 1 SPP, 2 bounces, 4 RIS candidates, particles/water waves off and zero-cost sharpen."
+	"caustica.options.rt.performanceMode.tooltip": "Reduces ray-tracing cost for higher real FPS before Frame Generation: 1 SPP, 2 bounces, 4 RIS candidates, particles/water waves off and zero-cost sharpen.",
+	"caustica.options.rt.scandiShader": "ScandiShader RTX Look",
+	"caustica.options.rt.scandiShader.tooltip": "Converted ScandiCraft visual grade from the supplied MakeUp Ultra Fast shaderpack. Keeps Caustica path tracing/DLSS and ports only compatible image styling.",
+	"caustica.options.rt.scandiGradeStrength": "Scandi Grade Strength",
+	"caustica.options.rt.scandiGradeStrength.tooltip": "Blend amount for the converted ScandiShader DERCODE-style color grade.",
+	"caustica.options.rt.scandiShadowTint": "Scandi Cool Shadows",
+	"caustica.options.rt.scandiShadowTint.tooltip": "Strength of the cool blue/cyan tint applied to darker tones.",
+	"caustica.options.rt.scandiHighlightWarmth": "Scandi Warm Highlights",
+	"caustica.options.rt.scandiHighlightWarmth.tooltip": "Strength of the subtle warm tint applied to highlights."
 }

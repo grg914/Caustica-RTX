@@ -113,11 +113,9 @@ native implementation automatically when the feature-specific header is present.
 No proprietary NVIDIA SDK/runtime files are committed to this repository.
 
 
-## ScandiShader compatibility layer
+## ScandiShader Caustica-native port
 
-The optional **ScandiShader RTX Look** is a semantic conversion of the user-supplied
-ScandiCraft shaderpack rather than an Iris/OptiFine compatibility wrapper. Caustica remains
-the Vulkan/path-traced renderer.
+The optional **ScandiShader RTX Look** is the Caustica-native port of the compatible visual parts of the user-supplied ScandiCraft shaderpack. It is not an Iris/OptiFine compatibility wrapper: Caustica remains the Vulkan/path-traced renderer and the original Iris shader ZIP must stay disabled while Caustica is active.
 
 Converted components:
 - exact single-pixel DERCODE Fast Grade logic from the supplied ScandiShader derivative
@@ -138,8 +136,7 @@ Not imported because Caustica already replaces them:
 - TAA/FXAA/FSR upscaling
 - Iris volumetric cloud/fog renderer passes
 
-This keeps the supplied shader's presentation while preserving Caustica path tracing,
-DLSS Ray Reconstruction, Neural Rendering integration, Frame Generation/MFG and Reflex.
+This keeps the supplied shader's presentation while preserving Caustica path tracing, DLSS Ray Reconstruction, Neural Rendering integration, Frame Generation/MFG and Reflex. Use the Caustica-adapted ScandiTexture resource pack for textures/celestials; do not stack the legacy Iris shader pipeline on top of Caustica.
 
 ### Credits
 

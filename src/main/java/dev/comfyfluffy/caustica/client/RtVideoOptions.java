@@ -241,9 +241,10 @@ public final class RtVideoOptions {
                 setting.set(enabled);
                 if (enabled) {
                     CausticaConfig.Rt.Composite.SPP.set(1);
-                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(2);
-                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(4);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(1);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(2);
                     CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(false);
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(false);
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(false);
                     CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
                 } else {
@@ -251,6 +252,7 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(4);
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(8);
                     CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
                 }
                 RtTerrain.requestFullClear();
@@ -340,8 +342,8 @@ public final class RtVideoOptions {
             "caustica.options.rt.maxBounces",
             OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.maxBounces.tooltip")),
             (caption, value) -> Options.genericValueLabel(caption, value),
-            new OptionInstance.IntRange(2, 8),
-            Math.clamp(setting.value(), 2, 8),
+            new OptionInstance.IntRange(1, 8),
+            Math.clamp(setting.value(), 1, 8),
             setting::set);
     }
 

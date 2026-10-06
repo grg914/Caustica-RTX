@@ -31,6 +31,17 @@ float3 discRadiance(float illuminance, float halfAngle) {
     return float3(illuminance / max(side * side, 1.0e-8));
 }
 
+// Keep linear filtering inside the selected atlas sprite. Resource packs can use large transparent
+// celestial textures and the celestials atlas may place unrelated sprites directly next to them; sampling
+// the exact UV edge lets bilinear filtering pull neighbouring texels into the sun/moon, producing the
+// characteristic cross/plus-shaped bleed seen with high-resolution moon packs.
+float2 celestialSpriteUv(float4 rect, float2 local) {
+    static const float UV_INSET = 0.002; // ~1 px on a 512 px sprite; negligible on vanilla sprites.
+    float2 t = saturate(local * 0.5 + 0.5);
+    t = lerp(float2(UV_INSET), float2(1.0 - UV_INSET), t);
+    return lerp(rect.xy, rect.zw, t);
+}
+
 // Dave Hoskins' hash13 (https://www.shadertoy.com/view/4djSRW): well-distributed and pattern-free.
 float hash13(float3 p3) {
     p3 = frac(p3 * 0.1031);
@@ -127,8 +138,9 @@ void main(inout Payload payload) {
             // is 60x too large. The centre keeps the sprite one colour, as vanilla draws it.
             float3 sunExtinction = transmittanceToSpace(transmittanceLut, state.viewerRadiusKm,
                     state.sunDir, state.sunAngularRadius);
-            float2 uv = lerp(state.sunUv.xy, state.sunUv.zw, local * 0.5 + 0.5);
-            float3 texel = celestialsAtlas.SampleLevel(uv, 0.0).rgb;
+            float2 uv = celestialSpriteUv(state.sunUv, local);
+            float4 sunSample = celestialsAtlas.SampleLevel(uv, 0.0);
+            float3 texel = sunSample.rgb * sunSample.a;
             // Vanilla's sun sprite bakes a soft glow gradient into its texels; scaling that raw to HDR
             // makes a huge ring around the disc. Raising the texture luminance to a high power keeps only
             // the bright core and collapses the painted halo to ~0 — the real halo comes from the Mie
@@ -137,8 +149,9 @@ void main(inout Payload payload) {
             color += discRadiance(state.sunIlluminance, state.sunDiscHalfAngle) * sunExtinction * core;
         }
         if (celestialSquareLocal(dir, state.moonDir, state.moonDiscHalfAngle, local)) {
-            float2 uv = lerp(state.moonUv.xy, state.moonUv.zw, local * 0.5 + 0.5);
-            float3 texel = srgbToLinear(celestialsAtlas.SampleLevel(uv, 0.0).rgb);
+            float2 uv = celestialSpriteUv(state.moonUv, local);
+            float4 moonSample = celestialsAtlas.SampleLevel(uv, 0.0);
+            float3 texel = srgbToLinear(moonSample.rgb) * moonSample.a;
             float3 moonExtinction = transmittanceToSpace(transmittanceLut, state.viewerRadiusKm,
                     state.moonDir, state.moonAngularRadius);
             // The phase sprite already carries the lit shape; a contrast ramp suppresses its faint painted

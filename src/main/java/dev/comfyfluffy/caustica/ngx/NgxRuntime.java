@@ -166,11 +166,39 @@ public final class NgxRuntime {
             Files.createDirectories(dir);
             boolean hasShim = extractBundledNative(PLATFORM_NATIVES.shimName(), dir.resolve(PLATFORM_NATIVES.shimName()));
             extractBundledFeatureLibraries(dir);
+            importManagerStagedFeatureLibraries(dir);
             return hasShim && Files.isRegularFile(dir.resolve(PLATFORM_NATIVES.shimName()))
                     ? dir.resolve(PLATFORM_NATIVES.shimName()) : null;
         } catch (IOException e) {
             CausticaMod.LOGGER.warn("Could not extract bundled NGX natives to {}", dir, e);
             return null;
+        }
+    }
+
+    private static void importManagerStagedFeatureLibraries(Path dir) {
+        Path stagedRoot = FabricLoader.getInstance().getGameDir().resolve(".dlss-nr-manager-runtime");
+        if (!Files.isDirectory(stagedRoot)) {
+            return;
+        }
+
+        // The manager validates user-supplied NVIDIA runtimes before staging them. Caustica only mirrors
+        // known NVIDIA feature-library filenames into the NGX search directory; it never fabricates or
+        // patches a vendor DLL. This bridge lets authorized/beta DLSS-NR runtimes supplied through the
+        // manager become discoverable by NGX without changing the public-build capability gate.
+        for (String name : List.of("nvngx_dlssnr.dll", "sl.dlss_nr.dll")) {
+            Path source = stagedRoot.resolve(name);
+            if (!Files.isRegularFile(source)) {
+                continue;
+            }
+            Path target = dir.resolve(name);
+            try {
+                if (!sameBytes(target, Files.readAllBytes(source))) {
+                    Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                CausticaMod.LOGGER.info("Imported manager-staged NGX feature runtime {} into {}", source, dir);
+            } catch (IOException e) {
+                CausticaMod.LOGGER.warn("Could not import manager-staged NGX feature runtime {}", source, e);
+            }
         }
     }
 

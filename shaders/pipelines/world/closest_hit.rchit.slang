@@ -197,10 +197,18 @@ float3 applyBreaking(float3 albedo709, uint rayCone, float3 rayOrigin, float3 ra
             float2 decalUv = (an.x >= an.y && an.x >= an.z) ? local.zy
                            : (an.y >= an.z) ? local.xz
                            : local.xy;
-            float decalLod = rayConeUnitUvLod(rayCone, texSizePx(entityAlbedoTex[NonUniformResourceIndex(ps.w)]));
-            float3 crack709 = srgbToLinear(
-                    entityAlbedoTex[NonUniformResourceIndex(ps.w)].SampleLevel(decalUv, decalLod).rgb);
-            return clamp(crack709 * albedo709, 0.0, 1.0);
+            // Destroy-stage decals are small, high-frequency overlays. Using the ray-cone-selected
+            // mip can average their thin crack lines away completely at ordinary play distances, making
+            // blocks appear to break with no visible progression. Keep the decal at LOD 0 and respect
+            // its alpha, matching vanilla's crumbling overlay semantics much more closely.
+            float4 crackSample = entityAlbedoTex[NonUniformResourceIndex(ps.w)].SampleLevel(decalUv, 0.0);
+            float3 crack709 = srgbToLinear(crackSample.rgb);
+            float crackAlpha = saturate(crackSample.a);
+            // Vanilla's crumbling blend is effectively multiplicative with a doubled source colour.
+            // Blend by alpha so transparent texels leave the base untouched while crack strokes remain
+            // clearly visible throughout stages 0..9.
+            float3 cracked = clamp(albedo709 * min(crack709 * 2.0, float3(1.0)), 0.0, 1.0);
+            return lerp(albedo709, cracked, crackAlpha);
         }
     }
     return albedo709;

@@ -62,7 +62,7 @@ public final class CausticaConfig {
             Rt.DlssNr.ENABLED, Rt.DlssNr.INTENSITY, Rt.DlssNr.LOCAL_TONE, Rt.DlssNr.LOCAL_STRUCTURE,
             Rt.DlssNr.GLOBAL_TONE, Rt.DlssNr.SKIN_STRUCTURE, Rt.DlssNr.STYLE, Rt.DlssNr.AUTO_MASK,
             Rt.PostFx.ENABLED, Rt.PostFx.SHARPEN, Rt.PostFx.CONTRAST, Rt.PostFx.SATURATION, Rt.PostFx.VIGNETTE,
-            Rt.Fg.ENABLED, Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
+            Rt.Performance.MODE, Rt.Fg.ENABLED, Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
             Rt.Exposure.PRE_EXPOSURE, Rt.Tonemap.GAMMA,
             Rt.Sdr.TONE_MAPPER, Rt.Hdr.TONE_MAPPER,
             Rt.FrameStats.ENABLED,
@@ -98,6 +98,8 @@ public final class CausticaConfig {
                         + " The setting is ignored when the native shim reports the feature unavailable.");
         FILE.setComment("post-fx",
                 " Lightweight Caustica-native post-processing. These effects run in the Caustica pipeline and do not require Iris/Sodium.");
+        FILE.setComment("performance",
+                " RTX performance preset. When enabled, Video Settings applies low-cost path-tracing values designed to raise real rendered FPS before MFG.");
         FILE.setComment("frame-generation",
                 " DLSS Frame Generation. Requires supported NVIDIA hardware and drivers.\n"
                         + " multi-frame-count sets generated frames per rendered frame (1 = 2x, 2 = 3x, ...).\n"
@@ -728,6 +730,14 @@ public final class CausticaConfig {
                     clampedFloat("caustica.rt.postFx.vignette", "post-fx.vignette", 0.0f, 0.0f, 1.0f);
 
             private PostFx() {
+            }
+        }
+
+        public static final class Performance {
+            public static final BooleanSetting MODE =
+                    bool("caustica.rt.performance", "performance.enabled", false);
+
+            private Performance() {
             }
         }
 

@@ -101,11 +101,11 @@ public final class CausticaClient implements ClientModInitializer {
 		if (ctx != null) {
 			RtEntities.INSTANCE.shutdown();
 		}
+		dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr.INSTANCE.destroy();
+		dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE.destroy();
 		RtComposite.INSTANCE.destroy();
 		RtEntityTextures.INSTANCE.reset();
 		RtBlockMaterials.INSTANCE.destroy();
-		dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr.INSTANCE.destroy();
-		dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE.destroy();
 		if (ctx != null) {
 			dev.comfyfluffy.caustica.rt.RtFramePresenter.INSTANCE.destroy(ctx.device());
 			dev.comfyfluffy.caustica.rt.RtReflex.INSTANCE.destroy(ctx.device().vkDevice());

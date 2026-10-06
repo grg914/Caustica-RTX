@@ -402,8 +402,9 @@ public final class RtVideoOptions {
             "caustica.options.rt.dlssNeuralRendering",
             OptionInstance.cachedConstantTooltip(
                     Component.translatable("caustica.options.rt.dlssNeuralRendering.tooltip")),
-            setting.value(),
-            enabled -> setting.set(enabled && RtDlssNr.INSTANCE.isAvailable()));
+            setting.value() && RtDlssNr.INSTANCE.isAvailable() && CausticaConfig.Rt.DlssRr.ENABLED.value(),
+            enabled -> setting.set(enabled && RtDlssNr.INSTANCE.isAvailable()
+                    && CausticaConfig.Rt.DlssRr.ENABLED.value()));
     }
 
     private static OptionInstance<Integer> dlssNrIntensity() {

@@ -719,7 +719,7 @@ public final class CausticaConfig {
             public static final BooleanSetting ENABLED =
                     bool("caustica.rt.postFx", "post-fx.enabled", true);
             public static final FloatSetting SHARPEN =
-                    clampedFloat("caustica.rt.postFx.sharpen", "post-fx.sharpen", 0.15f, 0.0f, 1.0f);
+                    clampedFloat("caustica.rt.postFx.sharpen", "post-fx.sharpen", 0.0f, 0.0f, 1.0f);
             public static final FloatSetting CONTRAST =
                     clampedFloat("caustica.rt.postFx.contrast", "post-fx.contrast", 1.0f, 0.5f, 1.5f);
             public static final FloatSetting SATURATION =

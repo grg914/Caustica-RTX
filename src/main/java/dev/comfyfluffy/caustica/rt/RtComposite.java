@@ -1376,7 +1376,11 @@ public final class RtComposite {
                         CausticaConfig.Rt.PostFx.SHARPEN.value(),
                         CausticaConfig.Rt.PostFx.CONTRAST.value(),
                         CausticaConfig.Rt.PostFx.SATURATION.value(),
-                        CausticaConfig.Rt.PostFx.VIGNETTE.value());
+                        CausticaConfig.Rt.PostFx.VIGNETTE.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_SHADER.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.value(),
+                        CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.value());
             }
             hdrWrittenThisFrame = CausticaConfig.Rt.Hdr.enabled();
             VulkanCommandEncoder.memoryBarrier(cmd, stack); // display output visible to NR/debug

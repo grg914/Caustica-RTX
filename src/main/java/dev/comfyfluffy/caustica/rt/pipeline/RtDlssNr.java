@@ -45,6 +45,7 @@ public final class RtDlssNr {
 
     public boolean enabled() {
         return CausticaConfig.Rt.DlssNr.ENABLED.value() && isAvailable()
+                && RtDlssRr.enabled()
                 && !CausticaConfig.Rt.Hdr.enabled();
     }
 
@@ -96,9 +97,11 @@ public final class RtDlssNr {
                         "ngxshim_create_dlssnr failed: last=0x" + Integer.toHexString(lib.lastResult()));
             }
 
+            // NVIDIA's reference integration uses an FP32 scratch target for NR and
+            // converts/blits the result back into the tonemapped UNORM display image.
             output = ctx.createStorageImage(
-                    displayWidth, displayHeight, VK10.VK_FORMAT_R8G8B8A8_UNORM,
-                    "DLSS Neural Rendering output " + displayWidth + "x" + displayHeight);
+                    displayWidth, displayHeight, VK10.VK_FORMAT_R32G32B32A32_SFLOAT,
+                    "DLSS Neural Rendering FP32 output " + displayWidth + "x" + displayHeight);
             width = displayWidth;
             height = displayHeight;
             resetHistory = true;
@@ -123,17 +126,18 @@ public final class RtDlssNr {
         }
 
         try {
-            // Caustica's guide motion vectors are already expressed in render-pixel units,
-            // matching the existing DLSS-RR path. Do not multiply them by the upscale ratio.
-            float mvScaleX = 1.0f;
-            float mvScaleY = 1.0f;
+            // Caustica stores guide MVs in render-pixel units. DLSS-NR operates at
+            // display resolution, so convert them to display-pixel units exactly like
+            // NVIDIA's reference path.
+            float mvScaleX = guideWidth > 0 ? (float) displayWidth / guideWidth : 1.0f;
+            float mvScaleY = guideHeight > 0 ? (float) displayHeight / guideHeight : 1.0f;
 
             int rc = lib.evaluateDlssNr(
                     cmd, feature,
                     color.view, color.image, VK10.VK_FORMAT_R8G8B8A8_UNORM,
                     depth.view, depth.image, VK10.VK_FORMAT_R32_SFLOAT,
                     motion.view, motion.image, VK10.VK_FORMAT_R16G16_SFLOAT,
-                    output.view, output.image, VK10.VK_FORMAT_R8G8B8A8_UNORM,
+                    output.view, output.image, VK10.VK_FORMAT_R32G32B32A32_SFLOAT,
                     displayWidth, displayHeight, guideWidth, guideHeight,
                     mvScaleX, mvScaleY,
                     1, resetHistory ? 1 : 0,

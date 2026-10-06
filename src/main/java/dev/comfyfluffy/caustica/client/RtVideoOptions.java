@@ -490,11 +490,11 @@ public final class RtVideoOptions {
                 if (enabled) {
                     CausticaConfig.Rt.PostFx.ENABLED.set(true);
                     // Exact values from the supplied scandicraft_dercode_balanced profile.
-                    CausticaConfig.Rt.PostFx.SATURATION.set(1.06f);
-                    CausticaConfig.Rt.PostFx.CONTRAST.set(1.04f);
-                    CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.set(0.65f);
-                    CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.set(0.40f);
-                    CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.set(0.30f);
+                    CausticaConfig.Rt.PostFx.SATURATION.set(1.14f);
+                    CausticaConfig.Rt.PostFx.CONTRAST.set(1.10f);
+                    CausticaConfig.Rt.PostFx.SCANDI_GRADE_STRENGTH.set(0.88f);
+                    CausticaConfig.Rt.PostFx.SCANDI_SHADOW_TINT.set(0.62f);
+                    CausticaConfig.Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH.set(0.46f);
                     CausticaConfig.Rt.PostFx.VIGNETTE.set(0.0f);
                     CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
                 }

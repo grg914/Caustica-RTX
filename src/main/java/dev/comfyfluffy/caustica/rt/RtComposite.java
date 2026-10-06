@@ -1396,9 +1396,7 @@ public final class RtComposite {
                 VulkanCommandEncoder.memoryBarrier(cmd, stack);
                 RtImage nrOutput = RtDlssNr.INSTANCE.output();
                 if (nrOutput != null) {
-                    VK10.vkCmdCopyImage(cmd, nrOutput.image, VK10.VK_IMAGE_LAYOUT_GENERAL,
-                            displayImage.image, VK10.VK_IMAGE_LAYOUT_GENERAL,
-                            copyRegion(stack, displayW, displayH));
+                    blitNrOutput(cmd, stack, nrOutput, displayImage);
                     VulkanCommandEncoder.memoryBarrier(cmd, stack);
                 }
             }
@@ -1998,6 +1996,23 @@ public final class RtComposite {
             enc.signalSemaphore(presentSem, 0L, 4096L);
         }
         return true;
+    }
+
+    /**
+     * Convert the FP32 DLSS-NR scratch image back into Caustica's display-ready UNORM image.
+     * The dimensions are identical; NEAREST matches NVIDIA's reference implementation and avoids
+     * introducing another reconstruction filter after NR.
+     */
+    private static void blitNrOutput(VkCommandBuffer cmd, MemoryStack stack, RtImage src, RtImage dst) {
+        VkImageBlit.Buffer region = VkImageBlit.calloc(1, stack);
+        region.get(0).srcSubresource().aspectMask(VK10.VK_IMAGE_ASPECT_COLOR_BIT)
+                .mipLevel(0).baseArrayLayer(0).layerCount(1);
+        region.get(0).dstSubresource().aspectMask(VK10.VK_IMAGE_ASPECT_COLOR_BIT)
+                .mipLevel(0).baseArrayLayer(0).layerCount(1);
+        region.get(0).srcOffsets(1).set(src.width, src.height, 1);
+        region.get(0).dstOffsets(1).set(dst.width, dst.height, 1);
+        VK10.vkCmdBlitImage(cmd, src.image, VK10.VK_IMAGE_LAYOUT_GENERAL,
+                dst.image, VK10.VK_IMAGE_LAYOUT_GENERAL, region, VK10.VK_FILTER_NEAREST);
     }
 
     /**

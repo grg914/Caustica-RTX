@@ -6,6 +6,7 @@ import dev.comfyfluffy.caustica.CausticaConfig.BooleanSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.FloatSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.IntSetting;
 import dev.comfyfluffy.caustica.CausticaConfig.StringSetting;
+import dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg;
 import dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr;
 import dev.comfyfluffy.caustica.rt.pipeline.RtToneMapping;
 import dev.comfyfluffy.caustica.rt.terrain.RtTerrain;
@@ -563,7 +564,17 @@ public final class RtVideoOptions {
     }
 
     private static OptionInstance<Boolean> frameGeneration() {
-        return bool("caustica.options.rt.frameGeneration", CausticaConfig.Rt.Fg.ENABLED);
+        BooleanSetting setting = CausticaConfig.Rt.Fg.ENABLED;
+        return OptionInstance.createBoolean(
+            "caustica.options.rt.frameGeneration",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.frameGeneration.tooltip")),
+            setting.value(),
+            enabled -> {
+                setting.set(enabled);
+                if (enabled) {
+                    RtDlssFg.INSTANCE.probeAvailabilityOnce();
+                }
+            });
     }
 
     private static OptionInstance<Integer> frameGenerationMultiplier() {

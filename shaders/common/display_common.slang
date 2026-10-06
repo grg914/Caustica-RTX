@@ -97,6 +97,11 @@ public struct DisplayPush {
     public float hdrParam5;
     public float hdrParam6;
     public float hdrParam7;
+    public int postFxEnabled;
+    public float postFxSharpen;
+    public float postFxContrast;
+    public float postFxSaturation;
+    public float postFxVignette;
 };
 
 public struct BloomPush {

@@ -172,5 +172,7 @@
 	"caustica.options.rt.postFxSaturation": "Post FX Saturation",
 	"caustica.options.rt.postFxSaturation.tooltip": "Display-space color saturation.",
 	"caustica.options.rt.postFxVignette": "Post FX Vignette",
-	"caustica.options.rt.postFxVignette.tooltip": "Darkens the outer image edges."
+	"caustica.options.rt.postFxVignette.tooltip": "Darkens the outer image edges.",
+	"caustica.options.rt.performanceMode": "RTX Performance Mode",
+	"caustica.options.rt.performanceMode.tooltip": "Reduces ray-tracing cost for higher real FPS before Frame Generation: 1 SPP, 2 bounces, 4 RIS candidates, particles/water waves off and zero-cost sharpen."
 }

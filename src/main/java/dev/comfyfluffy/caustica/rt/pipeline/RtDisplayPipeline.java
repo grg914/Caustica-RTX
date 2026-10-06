@@ -207,7 +207,8 @@ public final class RtDisplayPipeline {
      */
     public void dispatch(VkCommandBuffer cmd, int width, int height, RtToneMapping.Settings toneMapping,
                          int lutSize, float gamma, float hdrPeakNits, boolean lookEnabled, int lookLutSize,
-                         float bloomStrength) {
+                         float bloomStrength, boolean postFxEnabled, float postFxSharpen,
+                         float postFxContrast, float postFxSaturation, float postFxVignette) {
         try (MemoryStack stack = MemoryStack.stackPush(); RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "display compute")) {
             VK10.vkCmdBindPipeline(cmd, VK10.VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
             VK10.vkCmdBindDescriptorSets(cmd, VK10.VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, stack.longs(descriptorSet), null);
@@ -229,7 +230,12 @@ public final class RtDisplayPipeline {
                     sdr.param0(), sdr.param1(), sdr.param2(), sdr.param3(),
                     sdr.param4(), sdr.param5(), sdr.param6(), sdr.param7(),
                     hdr.param0(), hdr.param1(), hdr.param2(), hdr.param3(),
-                    hdr.param4(), hdr.param5(), hdr.param6(), hdr.param7()).write(push);
+                    hdr.param4(), hdr.param5(), hdr.param6(), hdr.param7(),
+                    postFxEnabled ? 1 : 0,
+                    postFxSharpen,
+                    postFxContrast,
+                    postFxSaturation,
+                    postFxVignette).write(push);
             VK10.vkCmdPushConstants(cmd, pipelineLayout, VK10.VK_SHADER_STAGE_COMPUTE_BIT, 0, push);
             VK10.vkCmdDispatch(cmd, (width + 15) / 16, (height + 15) / 16, 1);
         }

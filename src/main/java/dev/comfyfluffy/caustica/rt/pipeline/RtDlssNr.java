@@ -123,8 +123,10 @@ public final class RtDlssNr {
         }
 
         try {
-            float mvScaleX = guideWidth > 0 ? (float) displayWidth / guideWidth : 1.0f;
-            float mvScaleY = guideHeight > 0 ? (float) displayHeight / guideHeight : 1.0f;
+            // Caustica's guide motion vectors are already expressed in render-pixel units,
+            // matching the existing DLSS-RR path. Do not multiply them by the upscale ratio.
+            float mvScaleX = 1.0f;
+            float mvScaleY = 1.0f;
 
             int rc = lib.evaluateDlssNr(
                     cmd, feature,
@@ -134,7 +136,7 @@ public final class RtDlssNr {
                     output.view, output.image, VK10.VK_FORMAT_R8G8B8A8_UNORM,
                     displayWidth, displayHeight, guideWidth, guideHeight,
                     mvScaleX, mvScaleY,
-                    0, resetHistory ? 1 : 0,
+                    1, resetHistory ? 1 : 0,
                     CausticaConfig.Rt.DlssNr.INTENSITY.value(),
                     CausticaConfig.Rt.DlssNr.LOCAL_TONE.value(),
                     CausticaConfig.Rt.DlssNr.LOCAL_STRUCTURE.value(),

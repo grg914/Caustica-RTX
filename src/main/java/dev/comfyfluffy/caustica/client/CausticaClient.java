@@ -74,6 +74,7 @@ public final class CausticaClient implements ClientModInitializer {
 		InvalidateRenderStateCallback.EVENT.register(() -> {
 			RtTerrain.requestFullClear();
 			RtComposite.INSTANCE.resetExposureHistory();
+			dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr.INSTANCE.resetHistory();
 			RtComposite.INSTANCE.resetFailureLatch(); // F3+A doubles as manual RT recovery after a latched failure
 		});
 
@@ -103,6 +104,7 @@ public final class CausticaClient implements ClientModInitializer {
 		RtComposite.INSTANCE.destroy();
 		RtEntityTextures.INSTANCE.reset();
 		RtBlockMaterials.INSTANCE.destroy();
+		dev.comfyfluffy.caustica.rt.pipeline.RtDlssNr.INSTANCE.destroy();
 		dev.comfyfluffy.caustica.rt.pipeline.RtDlssFg.INSTANCE.destroy();
 		if (ctx != null) {
 			dev.comfyfluffy.caustica.rt.RtFramePresenter.INSTANCE.destroy(ctx.device());

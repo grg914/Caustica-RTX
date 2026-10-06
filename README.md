@@ -138,6 +138,8 @@ Not imported because Caustica already replaces them:
 
 This keeps the supplied shader's presentation while preserving Caustica path tracing, DLSS Ray Reconstruction, Neural Rendering integration, Frame Generation/MFG and Reflex. Use the Caustica-adapted ScandiTexture resource pack for textures/celestials; do not stack the legacy Iris shader pipeline on top of Caustica.
 
+**RTX Performance Mode is reversible:** enabling it snapshots the current SPP/bounce/RIS/particles/glow/waves/sharpen settings, applies the low-cost preset, and restores the previous values when disabled in the same session.
+
 ### Credits
 
 The supplied shaderpack identifies **MakeUp Ultra Fast 9.3h** by Javier Garduño as its base

@@ -200,28 +200,50 @@ float3 tonemapHdr(float3 lookedAcesCg) {
     return displayGammaHdr(hdrToneLut.SampleLevel(lutTexCoord(uvw, pc.lutSize), 0.0).rgb);
 }
 
-float3 applyScandiShaderGrade(float3 color) {
+float3 applyScandiShaderGradeWithLuma(float3 color, float3 lumaCoefficients) {
     if (pc.scandiShaderEnabled == 0) {
         return color;
     }
 
-    float luma = dot(color, BT709_LUMA);
+    float3 base = clamp(color, 0.0, 1.0);
+    float luma = dot(base, lumaCoefficients);
 
-    // Port of the user-supplied ScandiCraft DERCODE Fast grade:
-    // cool shadows, subtly warm highlights, no extra textures or passes.
-    float3 graded = lerp(float3(luma), color, clamp(pc.postFxSaturation, 0.0, 2.0));
+    // Single-pass split tone designed for Caustica's RT path: stronger than the
+    // generic post-FX grade but still deterministic and free of Iris-only AO/SSR/TAA.
+    float3 graded = lerp(float3(luma), base, clamp(pc.postFxSaturation, 0.0, 2.0));
     graded = (graded - 0.5) * clamp(pc.postFxContrast, 0.5, 1.5) + 0.5;
 
-    float shadowMask = 1.0 - smoothstep(0.10, 0.55, luma);
-    float highlightMask = smoothstep(0.55, 0.95, luma);
+    float shadowMask = 1.0 - smoothstep(0.08, 0.52, luma);
+    float highlightMask = smoothstep(0.50, 0.92, luma);
+    float midMask = saturate(1.0 - shadowMask - highlightMask);
 
-    graded *= lerp(float3(1.0), float3(0.975, 0.995, 1.035),
-            shadowMask * clamp(pc.scandiShadowTint, 0.0, 1.0));
-    graded *= lerp(float3(1.0), float3(1.025, 1.005, 0.980),
-            highlightMask * clamp(pc.scandiHighlightWarmth, 0.0, 1.0));
+    float shadowStrength = clamp(pc.scandiShadowTint, 0.0, 1.0);
+    float highlightStrength = clamp(pc.scandiHighlightWarmth, 0.0, 1.0);
+
+    graded *= lerp(float3(1.0), float3(0.935, 1.005, 1.095),
+            shadowMask * shadowStrength);
+    graded *= lerp(float3(1.0), float3(1.080, 1.018, 0.935),
+            highlightMask * highlightStrength);
+    graded *= lerp(float3(1.0), float3(0.985, 1.018, 1.000),
+            midMask * shadowStrength * 0.22);
+
+    // Keep blacks deep while lifting low-mid separation enough that toggling the
+    // preset is immediately visible in daylight and indoor RT scenes.
+    graded = max(graded, float3(0.0));
+    float gradedLuma = dot(graded, lumaCoefficients);
+    float toeLift = smoothstep(0.04, 0.34, gradedLuma) * (1.0 - smoothstep(0.34, 0.58, gradedLuma));
+    graded *= 1.0 + toeLift * 0.055 * shadowStrength;
 
     graded = clamp(graded, 0.0, 1.0);
-    return lerp(color, graded, clamp(pc.scandiGradeStrength, 0.0, 1.0));
+    return lerp(base, graded, clamp(pc.scandiGradeStrength, 0.0, 1.0));
+}
+
+float3 applyScandiShaderGrade(float3 color) {
+    return applyScandiShaderGradeWithLuma(color, BT709_LUMA);
+}
+
+float3 applyScandiShaderGradeHdr(float3 pqColor) {
+    return applyScandiShaderGradeWithLuma(pqColor, BT2020_LUMA);
 }
 
 float3 applyPostFx(float3 codeColor, int2 pix, uint w, uint h, float exposure) {
@@ -290,8 +312,12 @@ void main(uint3 dispatchId : SV_DispatchThreadID) {
     outputImage[pix] = float4(applyPostFx(sdrColor, pix, w, h, exposure), 1.0);
 
     if (pc.hdrEnabled != 0) {
-        hdrImage[pix] = pc.hdrMode == 0
-                ? float4(tonemapHdr(lookedAcesCg), 1.0)
-                : float4(displayGammaHdr(localHdrToneMap(exposedAcesCg)), 1.0);
+        float3 hdrColor = pc.hdrMode == 0
+                ? tonemapHdr(lookedAcesCg)
+                : displayGammaHdr(localHdrToneMap(exposedAcesCg));
+        if (pc.postFxEnabled != 0 && pc.scandiShaderEnabled != 0) {
+            hdrColor = applyScandiShaderGradeHdr(hdrColor);
+        }
+        hdrImage[pix] = float4(hdrColor, 1.0);
     }
 }

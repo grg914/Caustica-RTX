@@ -46,6 +46,8 @@ static const bool g_verbose = std::getenv("NGXSHIM_VERBOSE") != nullptr;
 static const char* kProjectId = "b6f1e9c2-7a44-4d1e-9b3a-1f2c3d4e5a6b";
 
 static NVSDK_NGX_Parameter* g_capabilityParams = nullptr;
+static VkInstance g_instance = VK_NULL_HANDLE;
+static VkPhysicalDevice g_physicalDevice = VK_NULL_HANDLE;
 static VkDevice g_device = VK_NULL_HANDLE;
 static int g_lastResult = 0;
 
@@ -142,6 +144,8 @@ NGX_SHIM_EXPORT int ngxshim_init(unsigned long long appId, const wchar_t* dataPa
     NGX_LOG("init: enter appId=%llu dataPath=%p instance=%p physicalDevice=%p device=%p getInstanceProcAddr=%p getDeviceProcAddr=%p featureDllPath=%p",
             appId, (void*) dataPath, (void*) instance, (void*) physicalDevice, (void*) device,
             getInstanceProcAddr, getDeviceProcAddr, (void*) featureDllPath);
+    g_instance = instance;
+    g_physicalDevice = physicalDevice;
     g_device = device;
 
     NVSDK_NGX_FeatureCommonInfo info;
@@ -494,10 +498,27 @@ NGX_SHIM_EXPORT int ngxshim_evaluate_dlssd(VkCommandBuffer cmd, void* feature,
 // every build so Java can probe it safely; authorized SDK builds compile the real path.
 NGX_SHIM_EXPORT int ngxshim_dlssnr_available() {
 #if defined(CAUSTICA_HAS_DLSSNR_SDK)
-    // The feature-specific SDK is compiled in and the shared NGX capability
-    // parameter block exists. Feature creation remains the authoritative
-    // GPU/driver/application capability test.
-    return g_capabilityParams != nullptr ? 1 : 0;
+    if (!g_capabilityParams || !g_instance || !g_physicalDevice) {
+        return 0;
+    }
+
+    NVSDK_NGX_FeatureCommonInfo commonInfo{};
+    NVSDK_NGX_FeatureDiscoveryInfo info{};
+    info.SDKVersion = NVSDK_NGX_Version_API;
+    info.FeatureID = NVSDK_NGX_Feature_DLSSNR;
+    info.Identifier.IdentifierType = NVSDK_NGX_Application_Identifier_Type_Project_Id;
+    info.Identifier.v.ProjectDesc.ProjectId = kProjectId;
+    info.Identifier.v.ProjectDesc.EngineType = NVSDK_NGX_ENGINE_TYPE_CUSTOM;
+    info.Identifier.v.ProjectDesc.EngineVersion = "1.0";
+    info.ApplicationDataPath = L" ";
+    info.FeatureInfo = &commonInfo;
+
+    NVSDK_NGX_FeatureRequirement requirement{};
+    NVSDK_NGX_Result r = NVSDK_NGX_VULKAN_GetFeatureRequirements(
+            g_instance, g_physicalDevice, &info, &requirement);
+    g_lastResult = (int) r;
+    return NVSDK_NGX_SUCCEED(r)
+            && requirement.FeatureSupported == NVSDK_NGX_FeatureSupportResult_Supported;
 #else
     return 0;
 #endif
@@ -774,6 +795,8 @@ NGX_SHIM_EXPORT void ngxshim_shutdown(VkDevice device) {
         g_capabilityParams = nullptr;
     }
     NVSDK_NGX_VULKAN_Shutdown1(device ? device : g_device);
+    g_instance = VK_NULL_HANDLE;
+    g_physicalDevice = VK_NULL_HANDLE;
     g_device = VK_NULL_HANDLE;
     NGX_LOG("shutdown: exit");
 }

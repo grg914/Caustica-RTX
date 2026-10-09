@@ -9,6 +9,21 @@ import bindings;
 import math;
 import trace;
 
+// Positive surrogate target for the optional first-receiver temporal path.
+// Never add this floor to real radiance; shadeReservoir uses physical BRDF
+// and visibility. This prevents zero-target historical support holes in a
+// controlled RIS estimator but does not prove unbiased multi-frame rendering.
+public static const float RESTIR_TEMPORAL_TARGET_FLOOR = 1.0e-3;
+
+public float restirSelectionTarget(float physicalTarget) {
+    // Fail closed on corrupted light/BSDF evaluations before the positive
+    // surrogate floor; NaN, infinity or negative targets are not reservoirs.
+    if (!(physicalTarget >= 0.0 && physicalTarget < 1.0e20)) {
+        return 0.0;
+    }
+    return max(physicalTarget, RESTIR_TEMPORAL_TARGET_FLOOR);
+}
+
 public struct Reservoir {
     public float3 pos;  // light sample point (rebased world space)
     public float3 lnrm; // emitter outward normal
@@ -365,7 +380,8 @@ public void selectLightGridLight(LightGridCell cell, bool useLocal, in PathSampl
 // Initial RIS over M power-weighted candidates -> one resampled sample, no shadow ray yet. The chosen
 // sample's W = wSum / (M * p-hat); M counts every candidate, including zero-weight ones.
 public Reservoir risInitial(float3 hitPos, float3 n, float3 v, float3 rd, float3 diffAlb, float3 F0,
-                     float rough, bool twoSided, float sss, in PathSampler risSampler) {
+                     float rough, bool twoSided, float sss, in PathSampler risSampler,
+                     bool temporalFullSupport) {
     Reservoir r = resEmpty();
     LightGridCell gridCell;
     int3 gridCellCoord;
@@ -424,15 +440,26 @@ public Reservoir risInitial(float3 hitPos, float3 n, float3 v, float3 rd, float3
         float phat;
         evalSampleContrib(sp, lightNormal, le, area, hitPos, n, v, rd,
                 diffAlb, F0, rough, twoSided, sss, phat);
-        if (phat <= 0.0) {
+        // A positive selection target preserves support for light samples
+        // that have zero contribution now but may matter next frame.
+        if (!(phat >= 0.0 && phat < 1.0e20)) {
+            r.M += 1.0;
+            continue;
+        }
+        if (!temporalFullSupport && phat <= 0.0) {
             r.M += 1.0;
             continue;
         }
         float sourcePdf = proposalPdf(lg, le, gridCell, gridCellCoord, localProbability);
-        float w = phat / max(sourcePdf, 1.0e-20);
+        if (!(sourcePdf > 0.0 && sourcePdf < 1.0e20)) {
+            r.M += 1.0;
+            continue;
+        }
+        float selectionTarget = temporalFullSupport ? restirSelectionTarget(phat) : phat;
+        float w = selectionTarget / sourcePdf;
         candidateSampler = pathSamplerWithGroup(risSampler,
                 PATH_GROUP_RIS_CANDIDATE_FIRST + c * 2u);
-        reservoirOffer(r, sp, lightNormal, le, area, phat, 1.0, w,
+        reservoirOffer(r, sp, lightNormal, le, area, selectionTarget, 1.0, w,
                 pathSample(candidateSampler, PATH_DIM_RIS_REPLACE));
     }
     reservoirFinalize(r);

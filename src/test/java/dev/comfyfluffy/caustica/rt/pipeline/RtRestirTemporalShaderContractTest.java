@@ -50,6 +50,9 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("abs(prev.receiverPosRoughness.w) < 1.0e20"));
         assertTrue(shader.contains("abs(rough) < 1.0e20"));
         assertTrue(shader.contains("float contributionWeight = restirHistoryCandidateWeight("));
+        assertTrue(shader.contains("float prevSelectionTarget = restirSelectionTarget(prevTarget);"));
+        assertTrue(shader.contains("prev, prevSelectionTarget, float(worldPush.risCandidates) * 4.0,"));
+        assertTrue(shader.contains("prev.samplePosArea.w, prevSelectionTarget, effectiveM,"));
         assertTrue(shader.contains("reservoirFinalize(r);"));
         assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId, proposalCellKey);"));
         assertTrue(shader.contains("all(prev.receiverIdentity.yzw == proposalCellKey)"));

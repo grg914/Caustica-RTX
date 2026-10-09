@@ -226,7 +226,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                 PathSampler risSampler = pathSamplerWithGroup(transportSampler, PATH_GROUP_RIS_BASE);
                 float3 v = -rd;
                 Reservoir r = risInitial(hitPos, n, v, rd, albedo, float3(0.0, 0.0, 0.0), 1.0,
-                                         true, 0.0, risSampler);
+                                         true, 0.0, risSampler, false);
                 L += throughput * shadeReservoir(r, hitPos, n, v, rd, albedo, float3(0.0, 0.0, 0.0), 1.0,
                                                  true, 0.0);
             }
@@ -323,7 +323,9 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             float activeSss = hitDepth <= MAX_SSS_INDIRECT_DEPTH ? sss : 0.0;
             PathSampler risSampler = pathSamplerWithGroup(transportSampler, PATH_GROUP_RIS_BASE);
             Reservoir r = risInitial(hitPos, n, v, rd, diffAlb, F0, rough, false, activeSss,
-                                     risSampler);
+                                     risSampler,
+                                     firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u
+                                             && pc.restirHistoryWriteAddr != 0);
             // The base continuation's first opaque receiver can be at bounce > 0
             // after water/glass. All later receivers, samples and split branches
             // retain the baseline RIS estimator.
@@ -374,9 +376,12 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                                         prev.samplePosArea.w,
                                         hitPos, n, v, rd, diffAlb, F0, rough,
                                         false, activeSss, prevTarget);
+                                // Re-evaluate this prior light under the CURRENT positive
+                                // selection target, leaving its real radiance unchanged.
+                                float prevSelectionTarget = restirSelectionTarget(prevTarget);
                                 float effectiveM;
                                 float contributionWeight = restirHistoryCandidateWeight(
-                                        prev, prevTarget, float(worldPush.risCandidates) * 4.0,
+                                        prev, prevSelectionTarget, float(worldPush.risCandidates) * 4.0,
                                         effectiveM);
                                 if (contributionWeight > 0.0) {
                                     PathSampler temporalSampler = pathSamplerWithGroup(
@@ -384,7 +389,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                                     reservoirOffer(r, prev.samplePosArea.xyz,
                                             prev.sampleNormalWeight.xyz,
                                             prev.sampleEmissionCount.xyz,
-                                            prev.samplePosArea.w, prevTarget, effectiveM,
+                                            prev.samplePosArea.w, prevSelectionTarget, effectiveM,
                                             contributionWeight,
                                             pathSample(temporalSampler, PATH_DIM_RIS_REPLACE));
                                     reservoirFinalize(r);

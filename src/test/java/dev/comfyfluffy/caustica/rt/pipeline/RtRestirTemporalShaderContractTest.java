@@ -35,6 +35,10 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("risSampler, PATH_GROUP_RIS_TEMPORAL)"));
         assertFalse(shader.contains("PATH_GROUP_RIS_CANDIDATE_FIRST + 128u"));
         assertTrue(shader.contains("prevClip.w > 0.0"));
+        assertTrue(shader.contains("prevClip.w < 1.0e20"));
+        assertTrue(shader.contains("all(abs(prevClip.xyz) < float3(1.0e20))"));
+        assertTrue(shader.contains("all(prevUv >= float2(0.0))"));
+        assertTrue(shader.contains("all(prevUv < float2(1.0))"));
         assertTrue(shader.contains("distance(prevHit, expectedPreviousHit) < 0.25"));
         assertTrue(shader.contains("dot(previousNormal, n) > 0.95"));
         assertTrue(shader.contains("abs(prevNormalLen2 - 1.0) <= 1.0e-3"));

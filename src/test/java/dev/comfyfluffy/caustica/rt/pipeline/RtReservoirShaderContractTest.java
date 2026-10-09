@@ -24,9 +24,12 @@ final class RtReservoirShaderContractTest {
         assertTrue(source.contains("if (selection * r.wSum < weight)"));
         assertTrue(source.contains("r.phat = target;"));
         assertTrue(source.contains("r.W = r.phat > 0.0 && r.M > 0.0 ? r.wSum / (r.M * r.phat) : 0.0;"));
-        assertTrue(source.contains("reservoirOffer(r, sp, lightNormal, le, area, phat, 1.0, w,"));
+        assertTrue(source.contains("reservoirOffer(r, sp, lightNormal, le, area, selectionTarget, 1.0, w,"));
         assertTrue(source.contains("reservoirFinalize(r);"));
-        assertTrue(source.contains("float w = phat / max(sourcePdf, 1.0e-20);"));
+        assertTrue(source.contains("float w = selectionTarget / sourcePdf;"));
+        assertTrue(source.contains("if (!temporalFullSupport && phat <= 0.0)"));
+        assertTrue(source.contains("temporalFullSupport ? restirSelectionTarget(phat) : phat"));
+        assertTrue(source.contains("if (!(sourcePdf > 0.0 && sourcePdf < 1.0e20))"));
         assertEquals(1, occurrences(source, "VisibilityResult shadow = visibility(origin, toL / dist"));
         assertFalse(source.contains("r.W = r.phat > 0.0 ?"));
     }

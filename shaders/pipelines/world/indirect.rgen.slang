@@ -34,7 +34,8 @@ import bindings;
 
 // Atmospheric transmittance LUT (RtSkyLut), also bound to world.rmiss at the same binding: raygen reads it
 // to colour the NEE sun/moonlight, the miss shader reads it to tint the visible discs and stars.
-public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathBranch) {
+public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathBranch,
+                        inout RestirHistory restirForPixel) {
     float3 L = float3(0.0, 0.0, 0.0);
     float3 ro = seg.ro;
     float3 rd = seg.rd;
@@ -67,6 +68,10 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
     // remains active with its full configured candidate count at every hit. Pass A's primary/interface
     // prefix is outside this SSS quality budget.
     int indirectDepth = 0;
+    // Pass A may already have consumed water/glass interfaces (seg.bounce > 0).
+    // Ignore those interfaces and particles: only the first opaque receiver of
+    // this continuation can own the pixel's temporal emitter reservoir.
+    bool firstOpaqueReceiver = true;
     for (int bounce = seg.bounce; bounce <= maxBounces; bounce++) {
         // Radiance SBT records run any-hit only for true alpha cutout. Translucent/water go straight to
         // closest-hit for dielectric handling. Geometry is double-sided; the chit flips the normal.
@@ -221,7 +226,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                 PathSampler risSampler = pathSamplerWithGroup(transportSampler, PATH_GROUP_RIS_BASE);
                 float3 v = -rd;
                 Reservoir r = risInitial(hitPos, n, v, rd, albedo, float3(0.0, 0.0, 0.0), 1.0,
-                                         true, 0.0, risSampler);
+                                         true, 0.0, risSampler, false);
                 L += throughput * shadeReservoir(r, hitPos, n, v, rd, albedo, float3(0.0, 0.0, 0.0), 1.0,
                                                  true, 0.0);
             }
@@ -308,7 +313,8 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             }
         }
 
-        // RIS direct lighting from block emitters (single-frame only, no temporal reservoir reuse).
+        // RIS direct lighting from block emitters. Optional temporal reuse belongs only
+        // to the first opaque receiver of the base continuation, not to bounce zero.
         // Front lobe + SSS backlighting are resampled together and share ONE shadow ray — a light can
         // only be in front of n or behind it, never both, so combining them into one target function is
         // exact, not an approximation. The SSS term is gated off past MAX_SSS_INDIRECT_DEPTH by passing
@@ -317,10 +323,88 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             float activeSss = hitDepth <= MAX_SSS_INDIRECT_DEPTH ? sss : 0.0;
             PathSampler risSampler = pathSamplerWithGroup(transportSampler, PATH_GROUP_RIS_BASE);
             Reservoir r = risInitial(hitPos, n, v, rd, diffAlb, F0, rough, false, activeSss,
-                                     risSampler);
+                                     risSampler,
+                                     firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u
+                                             && pc.restirHistoryWriteAddr != 0);
+            // The base continuation's first opaque receiver can be at bounce > 0
+            // after water/glass. All later receivers, samples and split branches
+            // retain the baseline RIS estimator.
+            if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u
+                    && pc.restirHistoryWriteAddr != 0) {
+                uint3 proposalCellKey = restirProposalCellKey(hitPos, risSampler);
+                if (pc.restirHistoryReadAddr != 0) {
+                    float3 prevSurface = hitPos - float3(payload.motionPrev);
+                    float4 prevClip = mul(worldPush.prevViewProj,
+                            float4(prevSurface - worldPush.camOffset + worldPush.camDelta, 1.0));
+                    // Reject malformed projected coordinates before float-to-int
+                    // conversion: NaN/Inf coordinates have undefined pixel indices.
+                    if (prevClip.w > 0.0 && prevClip.w < 1.0e20
+                            && all(abs(prevClip.xyz) < float3(1.0e20))) {
+                        float2 prevUv = prevClip.xy / prevClip.w * 0.5 + 0.5;
+                        uint2 size = DispatchRaysDimensions().xy;
+                        if (all(prevUv >= float2(0.0)) && all(prevUv < float2(1.0))) {
+                        int2 previousPixel = int2(floor(prevUv * float2(size)));
+                        if (all(previousPixel >= int2(0)) && all(previousPixel < int2(size))) {
+                            uint prevIndex = uint(previousPixel.y) * size.x + uint(previousPixel.x);
+                            RestirHistory prev = ConstPtr<RestirHistory>(
+                                    pc.restirHistoryReadAddr)[prevIndex];
+                            float3 previousNormal = prev.receiverNormalValid.xyz;
+                            float3 prevHit = prev.receiverPosRoughness.xyz;
+                            float3 expectedPreviousHit = hitPos - float3(payload.motionPrev);
+                            // Dot products are angular tests only for unit normals.
+                            // Reject invalid history vectors rather than accepting a
+                            // scaled normal whose dot happens to exceed the threshold.
+                            float prevNormalLen2 = dot(previousNormal, previousNormal);
+                            float curNormalLen2 = dot(n, n);
+                            if (prev.receiverNormalValid.w > 0.5
+                                    && payload.materialId != PAYLOAD_INVALID_MATERIAL_ID
+                                    && prev.receiverIdentity.x == payload.materialId
+                                    && all(prev.receiverIdentity.yzw == proposalCellKey)
+                                    && all(abs(prevHit) < float3(1.0e20))
+                                    && all(abs(expectedPreviousHit) < float3(1.0e20))
+                                    && abs(prev.receiverPosRoughness.w) < 1.0e20
+                                    && abs(rough) < 1.0e20
+                                    && abs(prevNormalLen2 - 1.0) <= 1.0e-3
+                                    && abs(curNormalLen2 - 1.0) <= 1.0e-3
+                                    && distance(prevHit, expectedPreviousHit) < 0.25
+                                    && dot(previousNormal, n) > 0.95
+                                    && abs(prev.receiverPosRoughness.w - rough) < 0.15) {
+                                float prevTarget;
+                                evalSampleContrib(prev.samplePosArea.xyz,
+                                        prev.sampleNormalWeight.xyz,
+                                        prev.sampleEmissionCount.xyz,
+                                        prev.samplePosArea.w,
+                                        hitPos, n, v, rd, diffAlb, F0, rough,
+                                        false, activeSss, prevTarget);
+                                // Re-evaluate this prior light under the CURRENT positive
+                                // selection target, leaving its real radiance unchanged.
+                                float prevSelectionTarget = restirSelectionTarget(prevTarget);
+                                float effectiveM;
+                                float contributionWeight = restirHistoryCandidateWeight(
+                                        prev, prevSelectionTarget, RESTIR_TEMPORAL_MAX_EFFECTIVE_M,
+                                        effectiveM);
+                                if (contributionWeight > 0.0) {
+                                    PathSampler temporalSampler = pathSamplerWithGroup(
+                                            risSampler, PATH_GROUP_RIS_TEMPORAL);
+                                    reservoirOffer(r, prev.samplePosArea.xyz,
+                                            prev.sampleNormalWeight.xyz,
+                                            prev.sampleEmissionCount.xyz,
+                                            prev.samplePosArea.w, prevSelectionTarget, effectiveM,
+                                            contributionWeight,
+                                            pathSample(temporalSampler, PATH_DIM_RIS_REPLACE));
+                                    reservoirFinalize(r);
+                                }
+                            }
+                        }
+                        }
+                    }
+                }
+                restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId, proposalCellKey);
+            }
             L += throughput * shadeReservoir(r, hitPos, n, v, rd, diffAlb, F0, rough, false,
                                              activeSss);
         }
+        firstOpaqueReceiver = false;
 
         // Thin-surface SSS transmission. Light entering from the back face scatters through toward the
         // viewer via a forward-biased HG phase (leaves/grass backlit by the sun glow when you look
@@ -417,16 +501,20 @@ void main() {
     ConstPtr<PackedPathSegment> queue = ConstPtr<PackedPathSegment>(pc.pathQueueAddr);
     float3 frameRadiance = float3(0.0, 0.0, 0.0);
     uint recordIndex = pixelIndex;
+    RestirHistory temporalHistory = restirInvalidHistory();
     for (uint leaf = 0u; leaf < MAX_PATH_SEGMENTS; ++leaf) {
         PackedPathSegment packed = queue[recordIndex];
         PathSegment segment = unpackPathSegment(packed);
         for (uint s = 0u; s < spp; ++s) {
-            frameRadiance += tracePath(segment, uint2(pix), s, leaf);
+            frameRadiance += tracePath(segment, uint2(pix), s, leaf, temporalHistory);
         }
         if (packed.nextRecord == PATH_NO_NEXT) {
             break;
         }
         recordIndex = packed.nextRecord;
+    }
+    if (pc.restirHistoryWriteAddr != 0) {
+        DevicePtr<RestirHistory>(pc.restirHistoryWriteAddr)[pixelIndex] = temporalHistory;
     }
     // Pre-exposure is applied here and nowhere else: the entire path-traced result above is in absolute
     // scene units, and only the fp16 store is normalized.

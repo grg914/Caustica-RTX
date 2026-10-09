@@ -36,6 +36,7 @@ public float3 offsetSurfaceOrigin(float3 position, float3 surfaceNormal,
 // (show-celestial gate, consumed by world.rmiss) and the packed ray cone (consumed by world.rchit for
 // texture LOD). Every other member is an OUTPUT that world.rchit/world.rmiss write, so it carries no
 // information into a trace and is initialized to a neutral value here.
+// The material ID remains invalid until a real closest-hit shader supplies it.
 public Payload makeRadiancePayload(uint flags, uint rayCone) {
     Payload p;
     // Zeroes the packed albedo/normal words directly: both the hit and the miss view read zero out of
@@ -51,6 +52,7 @@ public Payload makeRadiancePayload(uint flags, uint rayCone) {
     p.emissionSss = 0u;
     p.iorTransmission = 0u;
     p.rayCone = rayCone;
+    p.materialId = PAYLOAD_INVALID_MATERIAL_ID;
     return p;
 }
 
@@ -93,6 +95,7 @@ public Payload makeShadowPayload() {
     shadowPayload.emissionSss = 0u;
     shadowPayload.iorTransmission = 0u;
     shadowPayload.rayCone = 0u;
+    shadowPayload.materialId = PAYLOAD_INVALID_MATERIAL_ID;
     return shadowPayload;
 }
 

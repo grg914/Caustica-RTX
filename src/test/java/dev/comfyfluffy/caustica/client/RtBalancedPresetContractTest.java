@@ -77,6 +77,16 @@ final class RtBalancedPresetContractTest {
     }
 
     @Test
+    void readmeDescribesTheActualFourProfileValues() throws IOException {
+        String readme = Files.readString(ROOT.resolve("README.md"));
+        assertTrue(readme.contains("Custom / Quality / Balanced / Max FPS"));
+        assertTrue(readme.contains("Quality (1 SPP, 3 bounces, 8 RIS candidates"));
+        assertTrue(readme.contains("Balanced (1 SPP, 2 bounces, 4 RIS"));
+        assertTrue(readme.contains("Max FPS (1 SPP, 1 bounce, 2 RIS"));
+        assertFalse(readme.contains("RTX Performance Mode applies 1 SPP, 2 bounces, 4 RIS"));
+    }
+
+    @Test
     void maxFpsAndCustomSettingsStayAvailable() throws IOException {
         String options = options();
         assertTrue(options.contains("new OptionInstance.IntRange(0, 3)"));

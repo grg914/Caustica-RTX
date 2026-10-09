@@ -329,6 +329,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             // retain the baseline RIS estimator.
             if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u
                     && pc.restirHistoryWriteAddr != 0) {
+                uint3 proposalCellKey = restirProposalCellKey(hitPos, risSampler);
                 if (pc.restirHistoryReadAddr != 0) {
                     float3 prevSurface = hitPos - float3(payload.motionPrev);
                     float4 prevClip = mul(worldPush.prevViewProj,
@@ -356,6 +357,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                             if (prev.receiverNormalValid.w > 0.5
                                     && payload.materialId != PAYLOAD_INVALID_MATERIAL_ID
                                     && prev.receiverIdentity.x == payload.materialId
+                                    && all(prev.receiverIdentity.yzw == proposalCellKey)
                                     && all(abs(prevHit) < float3(1.0e20))
                                     && all(abs(expectedPreviousHit) < float3(1.0e20))
                                     && abs(prev.receiverPosRoughness.w) < 1.0e20
@@ -392,7 +394,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                         }
                     }
                 }
-                restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId);
+                restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId, proposalCellKey);
             }
             L += throughput * shadeReservoir(r, hitPos, n, v, rd, diffAlb, F0, rough, false,
                                              activeSss);

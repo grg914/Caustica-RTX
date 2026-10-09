@@ -45,9 +45,10 @@ final class RtRestirMaterialProvenanceContractTest {
         assertEquals(3, occurrences(closest, "payload.materialId = pr.materialId;"));
         assertTrue(trace.contains("p.materialId = PAYLOAD_INVALID_MATERIAL_ID;"));
         assertTrue(trace.contains("shadowPayload.materialId = PAYLOAD_INVALID_MATERIAL_ID;"));
-        assertTrue(lighting.contains("h.receiverIdentity = uint4(materialId, 0u, 0u, 0u);"));
+        assertTrue(lighting.contains("h.receiverIdentity = uint4(materialId, proposalCellKey);"));
+        assertTrue(indirect.contains("all(prev.receiverIdentity.yzw == proposalCellKey)"));
         assertTrue(lighting.contains("r.W > 0.0 && materialId != PAYLOAD_INVALID_MATERIAL_ID"));
-        assertTrue(indirect.contains("restirStore(r, hitPos, n, rough, payload.materialId)"));
+        assertTrue(indirect.contains("restirStore(r, hitPos, n, rough, payload.materialId, proposalCellKey)"));
         assertTrue(host.contains("RESTIR_HISTORY_STRIDE_BYTES = 96L"));
         assertTrue(host.contains("restirLastMaterialEpoch == RtMaterialRegistry.INSTANCE.epoch()"));
         assertFalse(indirect.contains("restirSpatialGeometryCompatible("));

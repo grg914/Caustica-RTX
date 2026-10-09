@@ -42,7 +42,7 @@ public struct RestirHistory {
     public float4 sampleEmissionCount;
     public float4 receiverPosRoughness;
     public float4 receiverNormalValid;
-    public uint4 receiverIdentity;  // x = authored material ID; yzw reserved
+    public uint4 receiverIdentity;  // x = material ID; yzw = exact RIS proposal grid cell (all 0xffffffff = global)
 }
 
 public RestirHistory restirInvalidHistory() {
@@ -52,18 +52,19 @@ public RestirHistory restirInvalidHistory() {
     h.sampleEmissionCount = float4(0.0);
     h.receiverPosRoughness = float4(0.0);
     h.receiverNormalValid = float4(0.0);
-    h.receiverIdentity = uint4(PAYLOAD_INVALID_MATERIAL_ID, 0u, 0u, 0u);
+    h.receiverIdentity = uint4(PAYLOAD_INVALID_MATERIAL_ID, 0xffffffffu, 0xffffffffu, 0xffffffffu);
     return h;
 }
 
-public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough, uint materialId) {
+public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough,
+                                uint materialId, uint3 proposalCellKey) {
     RestirHistory h;
     h.samplePosArea = float4(r.pos, r.area);
     h.sampleNormalWeight = float4(r.lnrm, r.W);
     h.sampleEmissionCount = float4(r.le, r.M);
     h.receiverPosRoughness = float4(hitPos, rough);
     h.receiverNormalValid = float4(n, r.W > 0.0 && materialId != PAYLOAD_INVALID_MATERIAL_ID ? 1.0 : 0.0);
-    h.receiverIdentity = uint4(materialId, 0u, 0u, 0u);
+    h.receiverIdentity = uint4(materialId, proposalCellKey);
     return h;
 }
 
@@ -229,6 +230,24 @@ public bool findLightGridCell(float3 p, out LightGridCell cell, out int3 cellCoo
         return false;
     }
     return true;
+}
+
+// The proposal mix is global-only or belongs to one jitter-selected grid cell.
+// Recompute the same deterministic RIS jitter as risInitial for temporal reuse;
+// matching this exact key prevents carrying a reservoir to a different qCell.
+// This conservative gate does not by itself establish unbiased temporal MIS.
+public uint3 restirProposalCellKey(float3 hitPos, in PathSampler risSampler) {
+    LightGridCell cell;
+    int3 cellCoord;
+    float3 gridLookup = hitPos;
+    if (pc.lightGridCellAddr != 0) {
+        gridLookup += (pathSample3(risSampler, PATH_DIM_RIS_GRID_X) - 0.5)
+                * worldPush.lightGridOrigin.w;
+    }
+    if (!findLightGridCell(gridLookup, cell, cellCoord)) {
+        return uint3(0xffffffffu);
+    }
+    return uint3(cellCoord);
 }
 
 public void selectSectionLight(uint firstLight, uint lightCount, in PathSampler risSampler, uint dimension,

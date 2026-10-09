@@ -70,13 +70,17 @@ final class CausticaConfigTest {
     }
 
     @Test
-    void balancedRtxPresetIsOptInAndKeepsExistingPerformanceCompatibility() {
+    void rtxQualityBalancedAndMaxFpsPresetsAreOptIn() {
         CausticaConfig.ensureRegistered();
+        assertFalse(CausticaConfig.Rt.Performance.QUALITY.defaultValue());
         assertFalse(CausticaConfig.Rt.Performance.BALANCED.defaultValue());
         assertFalse(CausticaConfig.Rt.Performance.MODE.defaultValue());
+        assertTrue(hasSetting("caustica.rt.performanceQuality"));
         assertTrue(hasSetting("caustica.rt.performanceBalanced"));
         assertTrue(hasSetting("caustica.rt.performance"));
-        assertEquals(1, CausticaConfig.Rt.DlssRr.QUALITY_STEPS.get(2));
+        assertTrue(CausticaConfig.Rt.DlssRr.QUALITY_STEPS.contains(2));
+        assertTrue(CausticaConfig.Rt.DlssRr.QUALITY_STEPS.contains(1));
+        assertTrue(CausticaConfig.Rt.DlssRr.QUALITY_STEPS.contains(0));
     }
 
     @Test

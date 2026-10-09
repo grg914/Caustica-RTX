@@ -33,7 +33,7 @@ final class RtReservoirShaderContractTest {
     void streamingWeightsRetainUnbiasedOneOverPdfNormalization() {
         double[] targets = {4.0, 3.0, 0.0, 1.0};
         double[] proposals = {0.4, 0.3, 0.6, 0.2};
-        double[] uniforms = {0.8, 0.1, 0.4, 0.2};
+        double[] uniforms = {0.8, 0.1, 0.4, 0.1};
         double sum = 0.0;
         double selectedTarget = 0.0;
 

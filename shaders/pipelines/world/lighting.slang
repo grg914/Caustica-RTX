@@ -34,13 +34,15 @@ public Reservoir resEmpty() {
 }
 
 // One primary receiver sample per render pixel, two alternating device-local
-// buffers. Five float4 lanes (80 B) keep the GPU address stride stable.
+// buffers. Five float4 lanes and one uint4 identity lane (96 B total).
+// Read/write BDA buffers and the Java allocation stride must match this ABI.
 public struct RestirHistory {
     public float4 samplePosArea;
     public float4 sampleNormalWeight;
     public float4 sampleEmissionCount;
     public float4 receiverPosRoughness;
     public float4 receiverNormalValid;
+    public uint4 receiverIdentity;  // x = authored material ID; yzw reserved
 }
 
 public RestirHistory restirInvalidHistory() {
@@ -50,22 +52,24 @@ public RestirHistory restirInvalidHistory() {
     h.sampleEmissionCount = float4(0.0);
     h.receiverPosRoughness = float4(0.0);
     h.receiverNormalValid = float4(0.0);
+    h.receiverIdentity = uint4(PAYLOAD_INVALID_MATERIAL_ID, 0u, 0u, 0u);
     return h;
 }
 
-public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough) {
+public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough, uint materialId) {
     RestirHistory h;
     h.samplePosArea = float4(r.pos, r.area);
     h.sampleNormalWeight = float4(r.lnrm, r.W);
     h.sampleEmissionCount = float4(r.le, r.M);
     h.receiverPosRoughness = float4(hitPos, rough);
-    h.receiverNormalValid = float4(n, r.W > 0.0 ? 1.0 : 0.0);
+    h.receiverNormalValid = float4(n, r.W > 0.0 && materialId != PAYLOAD_INVALID_MATERIAL_ID ? 1.0 : 0.0);
+    h.receiverIdentity = uint4(materialId, 0u, 0u, 0u);
     return h;
 }
 
 // Geometry-only acceptance rule for prospective spatial neighbors.
-// Important: RestirHistory does not yet retain a material identifier or a
-// proposal-family identifier. Therefore this predicate MUST NOT independently
+// Important: RestirHistory now retains material identity but still lacks
+// proposal-family identity. Therefore this geometry predicate MUST NOT independently
 // authorize spatial reservoir consumption in the production estimator.
 // A future opt-in spatial pass must add material/proposal checks, derive proper
 // target-PDF/MIS weighting, and synchronize neighbor reads before using it.

@@ -197,7 +197,8 @@ public final class RtComposite {
     // Packed primary -> indirect continuations. Pass A is fixed at one sample and owns two records per
     // render pixel (base + optional transmission); Pass B resamples them at the configured SPP.
     private RtBuffer continuationQueue;
-    private static final long RESTIR_HISTORY_STRIDE_BYTES = 80L;
+    // Must match five float4 + one uint4 lanes in shaders/pipelines/world/lighting.slang.
+    private static final long RESTIR_HISTORY_STRIDE_BYTES = 96L;
     private static final long RESTIR_HISTORY_MEMORY_BUDGET = 768L * 1024L * 1024L;
     private final RtBuffer[] restirHistory = new RtBuffer[2];
     private int restirHistoryReadSlot;

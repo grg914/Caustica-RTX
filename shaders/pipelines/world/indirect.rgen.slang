@@ -34,7 +34,8 @@ import bindings;
 
 // Atmospheric transmittance LUT (RtSkyLut), also bound to world.rmiss at the same binding: raygen reads it
 // to colour the NEE sun/moonlight, the miss shader reads it to tint the visible discs and stars.
-public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathBranch) {
+public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathBranch,
+                        inout RestirHistory restirForPixel) {
     float3 L = float3(0.0, 0.0, 0.0);
     float3 ro = seg.ro;
     float3 rd = seg.rd;
@@ -318,6 +319,59 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             PathSampler risSampler = pathSamplerWithGroup(transportSampler, PATH_GROUP_RIS_BASE);
             Reservoir r = risInitial(hitPos, n, v, rd, diffAlb, F0, rough, false, activeSss,
                                      risSampler);
+            // Only the first camera-surface sample owns the pixel history. The
+            // ordinary RIS estimator still handles all other samples/bounces.
+            if (bounce == 0 && pathBranch == 0u && sampleIndex == 0u
+                    && pc.restirHistoryWriteAddr != 0) {
+                if (pc.restirHistoryReadAddr != 0) {
+                    float3 prevSurface = hitPos - float3(payload.motionPrev);
+                    float4 prevClip = mul(worldPush.prevViewProj,
+                            float4(prevSurface - worldPush.camOffset + worldPush.camDelta, 1.0));
+                    if (prevClip.w > 0.0) {
+                        float2 prevUv = prevClip.xy / prevClip.w * 0.5 + 0.5;
+                        uint2 size = DispatchRaysDimensions().xy;
+                        int2 previousPixel = int2(floor(prevUv * float2(size)));
+                        if (all(previousPixel >= int2(0)) && all(previousPixel < int2(size))) {
+                            uint prevIndex = uint(previousPixel.y) * size.x + uint(previousPixel.x);
+                            RestirHistory prev = ConstPtr<RestirHistory>(
+                                    pc.restirHistoryReadAddr)[prevIndex];
+                            float3 previousNormal = prev.receiverNormalValid.xyz;
+                            float3 prevHit = prev.receiverPosRoughness.xyz;
+                            float3 expectedPreviousHit = hitPos - float3(payload.motionPrev);
+                            if (prev.receiverNormalValid.w > 0.5
+                                    && distance(prevHit, expectedPreviousHit) < 0.25
+                                    && dot(previousNormal, n) > 0.95
+                                    && abs(prev.receiverPosRoughness.w - rough) < 0.15) {
+                                float prevTarget;
+                                evalSampleContrib(prev.samplePosArea.xyz,
+                                        prev.sampleNormalWeight.xyz,
+                                        prev.sampleEmissionCount.xyz,
+                                        prev.samplePosArea.w,
+                                        hitPos, n, v, rd, diffAlb, F0, rough,
+                                        false, activeSss, prevTarget);
+                                float effectiveM = min(prev.sampleEmissionCount.w,
+                                        float(worldPush.risCandidates) * 4.0);
+                                float contributionWeight =
+                                        prevTarget * prev.sampleNormalWeight.w * effectiveM;
+                                if (effectiveM > 0.0 && prevTarget > 0.0
+                                        && contributionWeight > 0.0
+                                        && contributionWeight < 1.0e20) {
+                                    PathSampler temporalSampler = pathSamplerWithGroup(
+                                            risSampler, PATH_GROUP_RIS_CANDIDATE_FIRST + 128u);
+                                    reservoirOffer(r, prev.samplePosArea.xyz,
+                                            prev.sampleNormalWeight.xyz,
+                                            prev.sampleEmissionCount.xyz,
+                                            prev.samplePosArea.w, prevTarget, effectiveM,
+                                            contributionWeight,
+                                            pathSample(temporalSampler, PATH_DIM_RIS_REPLACE));
+                                    reservoirFinalize(r);
+                                }
+                            }
+                        }
+                    }
+                }
+                restirForPixel = restirStore(r, hitPos, n, rough);
+            }
             L += throughput * shadeReservoir(r, hitPos, n, v, rd, diffAlb, F0, rough, false,
                                              activeSss);
         }
@@ -417,16 +471,20 @@ void main() {
     ConstPtr<PackedPathSegment> queue = ConstPtr<PackedPathSegment>(pc.pathQueueAddr);
     float3 frameRadiance = float3(0.0, 0.0, 0.0);
     uint recordIndex = pixelIndex;
+    RestirHistory stored = restirInvalidHistory();
     for (uint leaf = 0u; leaf < MAX_PATH_SEGMENTS; ++leaf) {
         PackedPathSegment packed = queue[recordIndex];
         PathSegment segment = unpackPathSegment(packed);
         for (uint s = 0u; s < spp; ++s) {
-            frameRadiance += tracePath(segment, uint2(pix), s, leaf);
+            frameRadiance += tracePath(segment, uint2(pix), s, leaf, stored);
         }
         if (packed.nextRecord == PATH_NO_NEXT) {
             break;
         }
         recordIndex = packed.nextRecord;
+    }
+    if (pc.restirHistoryWriteAddr != 0) {
+        DevicePtr<RestirHistory>(pc.restirHistoryWriteAddr)[pixelIndex] = stored;
     }
     // Pre-exposure is applied here and nowhere else: the entire path-traced result above is in absolute
     // scene units, and only the fp16 store is normalized.

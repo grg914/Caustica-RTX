@@ -27,6 +27,8 @@ public struct WorldPushConstants {
     public uint64_t lightGridCellAddr;   // dense light grid cell headers (0 = global proposals only)
     public uint64_t lightGridSpanAddr;   // packed weighted section spans referenced by cell headers
     public uint64_t pathQueueAddr;       // packed primary -> indirect continuation records
+    public uint64_t restirHistoryReadAddr;  // 0 = history invalid / reuse disabled
+    public uint64_t restirHistoryWriteAddr; // 0 = baseline RIS without history storage
     public uint frameIndex;
 };
 

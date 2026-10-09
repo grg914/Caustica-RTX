@@ -33,6 +33,36 @@ public Reservoir resEmpty() {
     return r;
 }
 
+// One primary receiver sample per render pixel, two alternating device-local
+// buffers. Five float4 lanes (80 B) keep the GPU address stride stable.
+public struct RestirHistory {
+    public float4 samplePosArea;
+    public float4 sampleNormalWeight;
+    public float4 sampleEmissionCount;
+    public float4 receiverPosRoughness;
+    public float4 receiverNormalValid;
+}
+
+public RestirHistory restirInvalidHistory() {
+    RestirHistory h;
+    h.samplePosArea = float4(0.0);
+    h.sampleNormalWeight = float4(0.0);
+    h.sampleEmissionCount = float4(0.0);
+    h.receiverPosRoughness = float4(0.0);
+    h.receiverNormalValid = float4(0.0);
+    return h;
+}
+
+public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough) {
+    RestirHistory h;
+    h.samplePosArea = float4(r.pos, r.area);
+    h.sampleNormalWeight = float4(r.lnrm, r.W);
+    h.sampleEmissionCount = float4(r.le, r.M);
+    h.receiverPosRoughness = float4(hitPos, rough);
+    h.receiverNormalValid = float4(n, r.W > 0.0 ? 1.0 : 0.0);
+    return h;
+}
+
 // Streaming reservoir selection shared by the emitter RIS candidate path.
 // Selection takes a uniform variate in [0,1); the surviving sample is chosen
 // proportionally to its importance weight without emitting visibility rays.

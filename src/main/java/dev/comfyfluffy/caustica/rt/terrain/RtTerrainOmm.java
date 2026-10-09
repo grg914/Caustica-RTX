@@ -117,30 +117,16 @@ final class RtTerrainOmm {
                 continue;
             }
 
-            // High-resolution custom packs commonly use large alpha overlays for grass,
-            // foliage and 3D-model details. Keep those triangles in UNKNOWN_OPAQUE so
-            // Vulkan still executes the exact any-hit alpha test. This is deliberately
-            // conservative: an incorrect "fully opaque" micromap classification skips
-            // any-hit entirely and exposes transparent RGB as black triangular wedges.
-            var contents = sprite.contents();
-            if (contents.width() > 256 || contents.height() > 256) {
-                if (sprite.isAnimated()) {
-                    animatedTris++;
-                }
-                unsafeMicroTriangles += microCount;
-                continue;
-            }
-
+            // Cutout/alpha sprites are correctness-sensitive: if an opacity micromap marks any
+            // region fully opaque, Vulkan may skip the any-hit alpha test entirely. Complex custom
+            // packs can then expose transparent RGB as large black triangular wedges. Keep every
+            // non-opaque sprite UNKNOWN_OPAQUE so the exact shader alpha test always runs. Fully
+            // opaque sprites above still retain the OMM fast path.
             if (sprite.isAnimated()) {
                 animatedTris++;
             }
-            OmmTriangleResult result = classifyTriangleCached(level, bytesPerTriangle, sprite, cornerUv, t);
-            System.arraycopy(result.data(), 0, data, t * bytesPerTriangle, bytesPerTriangle);
-            OmmMicroCounts counts = result.counts();
-            opaqueMicroTriangles += counts.opaque();
-            transparentMicroTriangles += counts.transparent();
-            mixedMicroTriangles += counts.mixed();
-            unsafeMicroTriangles += counts.unsafe();
+            unsafeMicroTriangles += microCount;
+            continue;
         }
         int classifiedMicroTriangles = opaqueMicroTriangles + transparentMicroTriangles;
         recordOmmStats(triCount, level, microCount, opaqueMicroTriangles, transparentMicroTriangles,

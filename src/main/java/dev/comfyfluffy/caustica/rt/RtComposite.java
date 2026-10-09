@@ -197,6 +197,20 @@ public final class RtComposite {
     // Packed primary -> indirect continuations. Pass A is fixed at one sample and owns two records per
     // render pixel (base + optional transmission); Pass B resamples them at the configured SPP.
     private RtBuffer continuationQueue;
+    // Must match five float4 + one uint4 lanes in shaders/pipelines/world/lighting.slang.
+    private static final long RESTIR_HISTORY_STRIDE_BYTES = 96L;
+    private static final long RESTIR_HISTORY_MEMORY_BUDGET = 768L * 1024L * 1024L;
+    private final RtBuffer[] restirHistory = new RtBuffer[2];
+    private int restirHistoryReadSlot;
+    private boolean restirHistoryValid;
+    private boolean renderSizeRestirEnabled;
+    private long restirLastLightGeneration = Long.MIN_VALUE;
+    private int restirLastRisCandidates = -1;
+    private long restirLastMaterialEpoch = Long.MIN_VALUE;
+    private long restirLastFrameSerial = Long.MIN_VALUE;
+    private Object restirLastWorld;
+    private int restirLastTerrainX, restirLastTerrainY, restirLastTerrainZ;
+    private int restirLastPathEpoch;
     private RtImage displayImage;
     // Bloom pyramid, finest first: level 0 is half display resolution and each level halves again. The
     // display mapper reads level 0, which the upsample sweep leaves holding the sum of every band.
@@ -980,11 +994,13 @@ public final class RtComposite {
         // the RR path whose render-resolution guide inputs the debug pass visualizes.
         boolean rrEnabled = RtDlssRr.enabled();
         int rrQuality = rrEnabled ? RtDlssRr.quality() : Integer.MIN_VALUE;
+        boolean restirEnabled = CausticaConfig.Rt.Lights.RESTIR_DI.value();
         if (output != null && continuationQueue != null
                 && displayImage != null && hdrDisplayImage != null && rrOutput != null
                 && bloomLevels.length > 0 && exposure.ready()
                 && displayW == width && displayH == height
-                && renderSizeRrEnabled == rrEnabled && renderSizeRrQuality == rrQuality) {
+                && renderSizeRrEnabled == rrEnabled && renderSizeRrQuality == rrQuality
+                && renderSizeRestirEnabled == restirEnabled) {
             return;
         }
         ctx.waitIdle(); // resize is rare; no in-flight frame may use the old image/descriptor
@@ -1002,6 +1018,7 @@ public final class RtComposite {
             continuationQueue.destroy();
             continuationQueue = null;
         }
+        destroyRestirHistory();
         destroyGuideImages();
 
         displayW = width;
@@ -1016,6 +1033,7 @@ public final class RtComposite {
         renderH = optimal != null ? optimal[1] : height;
         renderSizeRrEnabled = rrEnabled;
         renderSizeRrQuality = rrQuality;
+        renderSizeRestirEnabled = restirEnabled;
 
         // RT traces and DLSS-RR reconstruct scene-linear ACEScg in an HDR R16G16B16A16_SFLOAT target,
         // so radiance > 1 and wide-gamut colour survive to the display seam. displayImage stays
@@ -1028,6 +1046,24 @@ public final class RtComposite {
         continuationQueue = ctx.createBuffer(continuationBytes,
                 VK10.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false,
                 "path continuation queue " + renderW + "x" + renderH + "x" + PATH_SEGMENTS_PER_PIXEL);
+        if (restirEnabled) {
+            long historyBytes = Math.multiplyExact(pixelRecords, RESTIR_HISTORY_STRIDE_BYTES);
+            if (historyBytes <= RESTIR_HISTORY_MEMORY_BUDGET / 2L) {
+                try {
+                    restirHistory[0] = ctx.createBuffer(historyBytes,
+                            VK10.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false, "ReSTIR history A");
+                    restirHistory[1] = ctx.createBuffer(historyBytes,
+                            VK10.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false, "ReSTIR history B");
+                } catch (RuntimeException ex) {
+                    destroyRestirHistory();
+                    CausticaMod.LOGGER.warn("ReSTIR history allocation unavailable; retaining RIS", ex);
+                }
+            } else {
+                CausticaMod.LOGGER.warn("ReSTIR requires {} MiB of history; above {} MiB cap. Using RIS.",
+                        (historyBytes * 2L) / (1024L * 1024L),
+                        RESTIR_HISTORY_MEMORY_BUDGET / (1024L * 1024L));
+            }
+        }
         displayImage = ctx.createStorageImage(width, height, VK10.VK_FORMAT_R8G8B8A8_UNORM, "RT display image " + width + "x" + height);
         // PQ-encoded ([0,1], ST.2084) HDR display image, written in parallel by display.comp when HDR mode is active.
         hdrDisplayImage = ctx.createStorageImage(width, height, VK10.VK_FORMAT_R16G16B16A16_SFLOAT, "RT HDR display image " + width + "x" + height);
@@ -1070,6 +1106,22 @@ public final class RtComposite {
         debugPresentPipeline.setImages(displayImage.view, gNormal.view, gAlbedo.view, gDepth.view,
                 gMotion.view, gSpecAlbedo.view, gSpecMotion.view, rrOutput.view, exposure.image().view,
                 exposure.stateBuffer());
+    }
+
+    private void destroyRestirHistory() {
+        for (int i = 0; i < restirHistory.length; i++) {
+            if (restirHistory[i] != null) {
+                restirHistory[i].destroy();
+                restirHistory[i] = null;
+            }
+        }
+        restirHistoryReadSlot = 0;
+        restirHistoryValid = false;
+        restirLastLightGeneration = Long.MIN_VALUE;
+        restirLastRisCandidates = -1;
+        restirLastMaterialEpoch = Long.MIN_VALUE;
+        restirLastFrameSerial = Long.MIN_VALUE;
+        restirLastWorld = null;
     }
 
     private void destroyBloomLevels() {
@@ -1137,6 +1189,28 @@ public final class RtComposite {
         RtGpuTimings.Frame gpuFrame = gpuTimings != null ? gpuTimings.begin(cmd) : null;
         int debugView = debugView();
         RtTerrain terrain = RtTerrain.currentOrNull();
+        boolean restirFrame = restirHistory[0] != null && restirHistory[1] != null
+                && terrain != null && terrain.lightCount() > 0
+                && CausticaConfig.Rt.Lights.RESTIR_DI.value();
+        // Reuse only a contiguous rendered frame. Skipped world/menu frames do not
+        // update history, and camera teleports must not join unrelated receivers.
+        boolean restirReadValid = restirFrame && restirHistoryValid && mvHasPrev
+                && restirLastFrameSerial == frameCounter - 1
+                && restirLastWorld == Minecraft.getInstance().level
+                && (double) mvCamDeltaX * mvCamDeltaX
+                        + (double) mvCamDeltaY * mvCamDeltaY
+                        + (double) mvCamDeltaZ * mvCamDeltaZ < 64.0
+                && restirLastLightGeneration == terrain.lightGeneration()
+                && restirLastRisCandidates == CausticaConfig.Rt.Lights.RIS_CANDIDATES.value()
+                && restirLastMaterialEpoch == RtMaterialRegistry.INSTANCE.epoch()
+                && restirLastTerrainX == terrain.blockX
+                && restirLastTerrainY == terrain.blockY
+                && restirLastTerrainZ == terrain.blockZ
+                && restirLastPathEpoch == pathSampleEpoch;
+        long restirReadAddress = restirReadValid
+                ? restirHistory[restirHistoryReadSlot].deviceAddress : 0L;
+        long restirWriteAddress = restirFrame
+                ? restirHistory[1 - restirHistoryReadSlot].deviceAddress : 0L;
         try (MemoryStack stack = MemoryStack.stackPush(); RtDebugLabels.Scope frameLabel = RtDebugLabels.scope(ctx, cmd, "composite frame")) {
             // RR drives the upscale: trace + jitter at render res, DLSS-RR denoises+upscales to display.
             // A debug view observes this ordinary path; it never changes jitter or disables RR.
@@ -1294,6 +1368,7 @@ public final class RtComposite {
                     terrain.lightBufferAddress(), terrain.lightAliasBufferAddress(),
                     terrain.lightLocalAliasBufferAddress(), terrain.lightGridCellBufferAddress(),
                     terrain.lightGridSpanBufferAddress(), continuationQueue.deviceAddress,
+                    restirReadAddress, restirWriteAddress,
                     (int) frameCounter).write(pushConstants);
             // Sky LUTs, from the same WorldPush slot the trace is about to read: the sky the LUT holds and
             // the sky the frame shades are built from one set of angles, not two. Recorded here (after the
@@ -1433,6 +1508,21 @@ public final class RtComposite {
         // every owner in this frame's manifest is protected through the final overlay consumer.
         RtEntities.INSTANCE.markGraphicsUse(frameEntities, graphicsUse);
         exposure.markStateReadbackUse(graphicsUse);
+        if (restirFrame) {
+            restirHistoryReadSlot = 1 - restirHistoryReadSlot;
+            restirHistoryValid = true;
+            restirLastLightGeneration = terrain.lightGeneration();
+            restirLastRisCandidates = CausticaConfig.Rt.Lights.RIS_CANDIDATES.value();
+            restirLastMaterialEpoch = RtMaterialRegistry.INSTANCE.epoch();
+            restirLastFrameSerial = frameCounter;
+            restirLastWorld = Minecraft.getInstance().level;
+            restirLastTerrainX = terrain.blockX;
+            restirLastTerrainY = terrain.blockY;
+            restirLastTerrainZ = terrain.blockZ;
+            restirLastPathEpoch = pathSampleEpoch;
+        } else {
+            restirHistoryValid = false;
+        }
     }
 
     /**
@@ -1629,6 +1719,7 @@ public final class RtComposite {
             continuationQueue.destroy();
             continuationQueue = null;
         }
+        destroyRestirHistory();
         if (pathSamplerData != null) {
             pathSamplerData.destroy();
             pathSamplerData = null;

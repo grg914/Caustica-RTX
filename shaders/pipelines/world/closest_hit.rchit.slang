@@ -227,6 +227,7 @@ void main(inout Payload payload, in BuiltInTriangleIntersectionAttributes attr) 
         EntityGeom g = ConstPtr<EntityGeom>(pc.entityTableAddr)[idx];
         uint pid = PrimitiveIndex() + g.triBase[GeometryIndex()];
         Prim pr = ConstPtr<Prim>(g.primAddr)[pid];
+        payload.materialId = pr.materialId;
         ConstPtr<uint> ib = ConstPtr<uint>(g.idxAddr);
         ConstPtr<float2> uvb = ConstPtr<float2>(g.uvAddr);
         uint p0 = ib[3u * pid + 0u];
@@ -272,6 +273,7 @@ void main(inout Payload payload, in BuiltInTriangleIntersectionAttributes attr) 
         EntityGeom g = ConstPtr<EntityGeom>(pc.entityTableAddr)[eidx];
         uint pid = PrimitiveIndex() + g.triBase[GeometryIndex()];
         Prim pr = ConstPtr<Prim>(g.primAddr)[pid];
+        payload.materialId = pr.materialId;
         // Rigid-reuse instances (still / spinning entities re-referencing a cached BLAS) carry a real
         // rotation in the instance transform; per-frame-built entities are identity. The cached prim
         // normal (and the TBN source positions below) are object-space — rotate them into world space.
@@ -341,6 +343,7 @@ void main(inout Payload payload, in BuiltInTriangleIntersectionAttributes attr) 
     // Water prims keep tint.w == 1, converted to the packed material enum below.
     uint pid = PrimitiveIndex() + sec.triBase[GeometryIndex()];
     TerrainPrim pr = ConstPtr<TerrainPrim>(sec.primAddr)[pid];
+    payload.materialId = pr.materialId;
     MaterialHeader materialHeader = ConstPtr<MaterialHeader>(pc.materialTableAddr)[pr.materialId];
     float3 n = normalize(pr.normal.xyz);
     float3 tint = pr.tint.rgb;

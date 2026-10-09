@@ -34,7 +34,8 @@ public final class RtPathSamplerData {
     static final int BOUNCE_COUNT = MAX_SUPPORTED_BOUNCE + 1;
     public static final int MAX_RIS_CANDIDATES = 32;
 
-    static final int GROUP_COUNT = 3 + 1 + MAX_RIS_CANDIDATES * 2 + 1;
+    // Transport(3), RIS base(1), candidate roots(2*32), celestial(1), temporal RIS(1).
+    static final int GROUP_COUNT = 3 + 1 + MAX_RIS_CANDIDATES * 2 + 1 + 1;
     static final int ROOTS_PER_GROUP = 1 + DIMENSIONS * 2;
 
     static final int DIRECTION_TABLE_OFFSET = 0;

@@ -57,7 +57,7 @@ public final class CausticaConfig {
         @SuppressWarnings("unused")
         Object[] touch = {
             Rt.ENABLED, Rt.Composite.SPP, Rt.Composite.MAX_BOUNCES, Rt.Terrain.ASYNC_DISPATCH_PER_PASS, Rt.Omm.ENABLED,
-            Rt.Lights.RIS_CANDIDATES,
+            Rt.Lights.RIS_CANDIDATES, Rt.Lights.RESTIR_DI,
             Rt.Entities.ENABLED, Rt.Entities.GLOW_ENABLED, Rt.EntityTextures.MAX_TEXTURES, Rt.DlssRr.ENABLED,
             Rt.DlssNr.ENABLED, Rt.DlssNr.INTENSITY, Rt.DlssNr.LOCAL_TONE, Rt.DlssNr.LOCAL_STRUCTURE,
             Rt.DlssNr.GLOBAL_TONE, Rt.DlssNr.SKIN_STRUCTURE, Rt.DlssNr.STYLE, Rt.DlssNr.AUTO_MASK,
@@ -594,6 +594,8 @@ public final class CausticaConfig {
         public static final class Lights {
             public static final IntSetting RIS_CANDIDATES =
                     clampedInt("caustica.rt.risCandidates", "lights.ris-candidates", 8, 0, 32);
+            public static final BooleanSetting RESTIR_DI =
+                    bool("caustica.rt.restirDi", "lights.restir-di", false);
             public static final FloatSetting MIN_FILL_RATIO =
                     finiteFloat("caustica.rt.lightMinFillRatio", "lights.min-fill-ratio", 0.25f);
             public static final BooleanSetting STATS = bool("caustica.rt.lightStats", "lights.stats", false);

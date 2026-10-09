@@ -36,7 +36,7 @@ This standalone profile change does **not** include the experimental ReSTIR shad
 
 Benchmark base rendered FPS and GPU frame time, GPU/CPU utilization, 1% lows, VRAM usage, latency with/without Reflex, and optional Frame Generation separately. Check for ghosting, temporal flicker, visual material mismatches, and shader errors. Neither CI compilation nor a green test suite is evidence of verified RTX 5060 Ti runtime performance.
 
-## RTX 5060 Ti hardware acceptance before stable merge
+## RTX 5060 Ti hardware acceptance before stable release
 
 Record your display resolution, render distance, NVIDIA driver version, Caustica JAR commit/hash, active DLSS-RR mode and whether FG/NR are independently enabled. Use the **same world, viewpoint, weather/time and movement route** for all comparisons.
 
@@ -47,4 +47,4 @@ Record your display resolution, render distance, NVIDIA driver version, Caustica
 5. **Performance and stability:** record average **rendered** FPS, 1% low, median/95th percentile GPU frame time, CPU frame time and peak VRAM for each preset at 1080p or 1440p (plus your actual target resolution). Run at least one demanding scene with many lights, water and entities. Evaluate Frame Generation separately; never treat generated FPS as base render throughput.
 6. **Safety checks:** inspect game logs for NGX/Vulkan errors, unexpected shader warnings or crashes and look for ghosting, shimmering, light leaks and unresponsive controls after changing modes.
 
-Keep this PR draft if any profile fails these checks. Report measured results rather than assuming a particular FPS advantage from the 16 GB VRAM capacity.
+Complete the code review, automated builds and safe PR integration before the final hardware session when those checks suffice. **Do not mark the application hardware-validated or publish a production JAR until the complete release candidate passes these on-device checks.** If a profile fails, fix the issue on a new scoped PR and repeat the impacted acceptance checks. Report measured results rather than assuming a fixed FPS advantage from 16 GB of VRAM.

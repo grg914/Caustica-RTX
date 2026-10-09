@@ -77,6 +77,16 @@ final class RtBalancedPresetContractTest {
     }
 
     @Test
+    void presetSwitchesAvoidUnnecessaryEmitterResidencyRebuilds() throws IOException {
+        String options = options();
+        assertTrue(options.contains(
+                "int previousRisCandidates = CausticaConfig.Rt.Lights.RIS_CANDIDATES.value();"));
+        assertTrue(options.contains(
+                "if (CausticaConfig.Rt.Lights.RIS_CANDIDATES.value() != previousRisCandidates) {"));
+        assertTrue(options.contains("RtTerrain.requestFullClear();"));
+    }
+
+    @Test
     void readmeDescribesTheActualFourProfileValues() throws IOException {
         String readme = Files.readString(ROOT.resolve("README.md"));
         assertTrue(readme.contains("Custom / Quality / Balanced / Max FPS"));

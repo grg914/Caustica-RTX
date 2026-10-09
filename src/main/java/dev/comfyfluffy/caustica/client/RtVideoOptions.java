@@ -288,6 +288,7 @@ public final class RtVideoOptions {
             activePreset,
             position -> {
                 int previousPreset = quality.value() ? 1 : balanced.value() ? 2 : maxFps.value() ? 3 : 0;
+                int previousRisCandidates = CausticaConfig.Rt.Lights.RIS_CANDIDATES.value();
                 if (position == previousPreset) {
                     return;
                 }
@@ -355,8 +356,10 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.PostFx.SHARPEN.set(CausticaConfig.Rt.PostFx.SHARPEN.defaultValue());
                     CausticaConfig.Rt.DlssRr.QUALITY.set(CausticaConfig.Rt.DlssRr.QUALITY.defaultValue());
                 }
-                // Candidate-count changes require the emitter population to be rebuilt.
-                RtTerrain.requestFullClear();
+                // Rebuild emitter residency only when RIS population actually changed.
+                if (CausticaConfig.Rt.Lights.RIS_CANDIDATES.value() != previousRisCandidates) {
+                    RtTerrain.requestFullClear();
+                }
             });
     }
 

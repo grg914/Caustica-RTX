@@ -112,7 +112,10 @@ public final class CausticaConfig {
                         + " minimum-interval-us controls frame limiting; 0 disables the limit.");
         FILE.setComment("lights",
                 " Controls direct lighting from glowing blocks such as torches, glowstone, and lava.\n"
-                        + " Set ris-candidates to 0 to disable it. stats, dump, and dump-radius are debugging options.");
+                        + " Set ris-candidates to 0 to disable it. stats, dump, and dump-radius are debugging options.\n"
+                        + " EXPERIMENTAL: restir-di enables temporal reservoir reuse (OFF by default).\n"
+                        + " This is not validated for production: Vulkan/RTX image stability, variance and GPU ABI require testing.\n"
+                        + " Spatial reuse remains disabled. Use only in a separate experimental Caustica build.");
         FILE.setComment("tonemap",
                 " Controls the final image. ACES 2.0 is the SDR and HDR default;\n"
                         + " PsychoV24 and the analytical operators are opt-in, with BT.2390 as the standards-based HDR\n"
@@ -594,6 +597,7 @@ public final class CausticaConfig {
         public static final class Lights {
             public static final IntSetting RIS_CANDIDATES =
                     clampedInt("caustica.rt.risCandidates", "lights.ris-candidates", 8, 0, 32);
+            /** Experimental temporal ReSTIR DI. Opt-in only; no spatial reuse or stable GPU validation. */
             public static final BooleanSetting RESTIR_DI =
                     bool("caustica.rt.restirDi", "lights.restir-di", false);
             public static final FloatSetting MIN_FILL_RATIO =

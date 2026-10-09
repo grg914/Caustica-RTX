@@ -38,6 +38,22 @@ final class RtRestirTemporalEstimatorOracleTest {
     }
 
     @Test
+    void visibilityIsAppliedOnlyToTheSelectedCurrentFrameLight() {
+        double[] oldTarget = {1, 8};
+        double[] currentTarget = {9, 2};
+        // Every light can be occluded even though the reservoir still has
+        // positive *unshadowed* target weights.
+        assertEquals(0.0, enumerate(oldTarget, currentTarget,
+                new double[] {0, 0}, 2, false), 1e-11);
+        // Reversing the visibility mask must preserve the integral of the
+        // surviving emitter, not the obsolete previous-frame target.
+        assertEquals(2.0, enumerate(oldTarget, currentTarget,
+                new double[] {0, 1}, 2, false), 1e-11);
+        assertEquals(11.0, enumerate(oldTarget, currentTarget,
+                new double[] {1, 1}, 2, false), 1e-11);
+    }
+
+    @Test
     void limitingHistorySampleCountKeepsEstimatorNormalized() {
         double[] oldTarget = {1, 8};
         double[] currentTarget = {9, 2};

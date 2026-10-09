@@ -245,6 +245,35 @@ public final class RtVideoOptions {
         return Component.translatable("caustica.options.rt.toneMapper." + name);
     }
 
+    // A manual change to any value controlled by a preset turns it into Custom.
+    // The edited values, not the pre-preset snapshot, are now the user's tuning.
+    private static void manualPresetOverride() {
+        CausticaConfig.Rt.Performance.QUALITY.set(false);
+        CausticaConfig.Rt.Performance.BALANCED.set(false);
+        CausticaConfig.Rt.Performance.MODE.set(false);
+        performanceSnapshot = null;
+    }
+
+    private static void manualPresetInt(IntSetting setting, int value) {
+        if (setting.value() != value) {
+            setting.set(value);
+            manualPresetOverride();
+        }
+    }
+
+    private static OptionInstance<Boolean> presetBoolean(String captionKey, BooleanSetting setting) {
+        return OptionInstance.createBoolean(
+                captionKey,
+                OptionInstance.cachedConstantTooltip(Component.translatable(captionKey + ".tooltip")),
+                setting.value(),
+                enabled -> {
+                    if (setting.value() != enabled) {
+                        setting.set(enabled);
+                        manualPresetOverride();
+                    }
+                });
+    }
+
     private static OptionInstance<Integer> rtxQualityPreset() {
         BooleanSetting quality = CausticaConfig.Rt.Performance.QUALITY;
         BooleanSetting balanced = CausticaConfig.Rt.Performance.BALANCED;
@@ -405,7 +434,7 @@ public final class RtVideoOptions {
             (caption, value) -> Options.genericValueLabel(caption, value),
             new OptionInstance.IntRange(1, 8),
             Math.clamp(setting.value(), 1, 8),
-            setting::set);
+            value -> manualPresetInt(setting, value));
     }
 
     private static OptionInstance<Integer> maxBounces() {
@@ -416,7 +445,7 @@ public final class RtVideoOptions {
             (caption, value) -> Options.genericValueLabel(caption, value),
             new OptionInstance.IntRange(1, 8),
             Math.clamp(setting.value(), 1, 8),
-            setting::set);
+            value -> manualPresetInt(setting, value));
     }
 
     private static OptionInstance<Integer> risCandidates() {
@@ -435,6 +464,7 @@ public final class RtVideoOptions {
                     return;
                 }
                 setting.set(value);
+                manualPresetOverride();
                 // Meshing omits emitter records while RIS is disabled; rebuild residency when the
                 // setting changes so the selected light population reaches the next render. DLSS-RR
                 // intentionally keeps its history here: this is a gradual lighting change, not a
@@ -448,11 +478,11 @@ public final class RtVideoOptions {
     }
 
     private static OptionInstance<Boolean> particles() {
-        return bool("caustica.options.rt.particles", CausticaConfig.Rt.Entities.PARTICLES_ENABLED);
+        return presetBoolean("caustica.options.rt.particles", CausticaConfig.Rt.Entities.PARTICLES_ENABLED);
     }
 
     private static OptionInstance<Boolean> waterWaves() {
-        return bool("caustica.options.rt.waterWaves", CausticaConfig.Rt.Composite.WATER_WAVES);
+        return presetBoolean("caustica.options.rt.waterWaves", CausticaConfig.Rt.Composite.WATER_WAVES);
     }
 
     private static OptionInstance<Integer> dlssQuality() {
@@ -467,7 +497,7 @@ public final class RtVideoOptions {
                     Component.translatable("caustica.options.rt.dlssQuality." + steps.get(position))),
             new OptionInstance.IntRange(0, steps.size() - 1),
             initialPosition,
-            position -> setting.set(steps.get(position)));
+            position -> manualPresetInt(setting, steps.get(position)));
     }
 
     private static OptionInstance<Boolean> dlssNeuralRendering() {
@@ -558,7 +588,21 @@ public final class RtVideoOptions {
     }
 
     private static OptionInstance<Integer> postFxSharpen() {
-        return percentage("caustica.options.rt.postFxSharpen", CausticaConfig.Rt.PostFx.SHARPEN, 0, 100);
+        FloatSetting setting = CausticaConfig.Rt.PostFx.SHARPEN;
+        return new OptionInstance<>(
+                "caustica.options.rt.postFxSharpen",
+                OptionInstance.cachedConstantTooltip(
+                        Component.translatable("caustica.options.rt.postFxSharpen.tooltip")),
+                (caption, value) -> Options.genericValueLabel(caption, Component.literal(value + "%")),
+                new OptionInstance.IntRange(0, 100),
+                Math.clamp(Math.round(setting.value() * 100.0f), 0, 100),
+                value -> {
+                    float sharpen = value / 100.0f;
+                    if (Math.round(setting.value() * 100.0f) != value) {
+                        setting.set(sharpen);
+                        manualPresetOverride();
+                    }
+                });
     }
 
     private static OptionInstance<Integer> postFxContrast() {

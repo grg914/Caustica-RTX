@@ -58,6 +58,8 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(host.contains("RESTIR_HISTORY_STRIDE_BYTES = 80L"));
         assertTrue(host.contains("RESTIR_HISTORY_MEMORY_BUDGET = 768L"));
         assertTrue(host.contains("restirLastLightGeneration == terrain.lightGeneration()"));
+        assertTrue(host.contains("restirLastMaterialEpoch == RtMaterialRegistry.INSTANCE.epoch()"));
+        assertTrue(host.contains("restirLastMaterialEpoch = RtMaterialRegistry.INSTANCE.epoch();"));
         assertTrue(host.contains("restirLastWorld == Minecraft.getInstance().level"));
         assertTrue(host.contains("restirLastPathEpoch == pathSampleEpoch"));
         assertTrue(host.contains("restirLastFrameSerial == frameCounter - 1"));

@@ -204,6 +204,7 @@ public final class RtComposite {
     private boolean restirHistoryValid;
     private boolean renderSizeRestirEnabled;
     private long restirLastLightGeneration = Long.MIN_VALUE;
+    private long restirLastMaterialEpoch = Long.MIN_VALUE;
     private long restirLastFrameSerial = Long.MIN_VALUE;
     private Object restirLastWorld;
     private int restirLastTerrainX, restirLastTerrainY, restirLastTerrainZ;
@@ -1115,6 +1116,7 @@ public final class RtComposite {
         restirHistoryReadSlot = 0;
         restirHistoryValid = false;
         restirLastLightGeneration = Long.MIN_VALUE;
+        restirLastMaterialEpoch = Long.MIN_VALUE;
         restirLastFrameSerial = Long.MIN_VALUE;
         restirLastWorld = null;
     }
@@ -1196,6 +1198,7 @@ public final class RtComposite {
                         + (double) mvCamDeltaY * mvCamDeltaY
                         + (double) mvCamDeltaZ * mvCamDeltaZ < 64.0
                 && restirLastLightGeneration == terrain.lightGeneration()
+                && restirLastMaterialEpoch == RtMaterialRegistry.INSTANCE.epoch()
                 && restirLastTerrainX == terrain.blockX
                 && restirLastTerrainY == terrain.blockY
                 && restirLastTerrainZ == terrain.blockZ
@@ -1505,6 +1508,7 @@ public final class RtComposite {
             restirHistoryReadSlot = 1 - restirHistoryReadSlot;
             restirHistoryValid = true;
             restirLastLightGeneration = terrain.lightGeneration();
+            restirLastMaterialEpoch = RtMaterialRegistry.INSTANCE.epoch();
             restirLastFrameSerial = frameCounter;
             restirLastWorld = Minecraft.getInstance().level;
             restirLastTerrainX = terrain.blockX;

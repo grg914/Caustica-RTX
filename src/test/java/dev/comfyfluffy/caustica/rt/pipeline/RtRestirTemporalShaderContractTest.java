@@ -13,13 +13,15 @@ final class RtRestirTemporalShaderContractTest {
     private static final Path ROOT = Path.of(System.getProperty("user.dir"));
 
     @Test
-    void historyLayoutHasFiveFixedFloat4Lanes() throws IOException {
+    void historyLayoutContainsIdentityLaneAndMatchesHostStride() throws IOException {
         String shader = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
         int start = shader.indexOf("public struct RestirHistory {");
         int end = shader.indexOf("}", start);
         assertTrue(start >= 0 && end > start);
         String layout = shader.substring(start, end);
         assertEquals(5, occurrences(layout, "public float4"));
+        assertEquals(1, occurrences(layout, "public uint4"));
+        assertTrue(layout.contains("receiverIdentity"));
         assertTrue(layout.contains("samplePosArea"));
         assertTrue(layout.contains("sampleNormalWeight"));
         assertTrue(layout.contains("sampleEmissionCount"));
@@ -49,7 +51,11 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("abs(rough) < 1.0e20"));
         assertTrue(shader.contains("float contributionWeight = restirHistoryCandidateWeight("));
         assertTrue(shader.contains("reservoirFinalize(r);"));
-        assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough);"));
+        assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId, proposalCellKey);"));
+        assertTrue(shader.contains("all(prev.receiverIdentity.yzw == proposalCellKey)"));
+        assertTrue(shader.contains("uint3 proposalCellKey = restirProposalCellKey(hitPos, risSampler);"));
+        assertTrue(shader.contains("prev.receiverIdentity.x == payload.materialId"));
+        assertTrue(shader.contains("payload.materialId != PAYLOAD_INVALID_MATERIAL_ID"));
         assertTrue(shader.contains("if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u"));
         assertTrue(shader.contains("firstOpaqueReceiver = false;"));
         assertFalse(shader.contains("if (bounce == 0 && pathBranch == 0u && sampleIndex == 0u"));
@@ -115,9 +121,11 @@ final class RtRestirTemporalShaderContractTest {
         String common = Files.readString(ROOT.resolve("shaders/pipelines/world/world_common.slang"));
 
         assertTrue(config.contains("lights.restir-di\", false)"));
-        assertTrue(host.contains("RESTIR_HISTORY_STRIDE_BYTES = 80L"));
+        assertTrue(host.contains("RESTIR_HISTORY_STRIDE_BYTES = 96L"));
         assertTrue(host.contains("RESTIR_HISTORY_MEMORY_BUDGET = 768L"));
         assertTrue(host.contains("restirLastLightGeneration == terrain.lightGeneration()"));
+        assertTrue(host.contains("restirLastRisCandidates == CausticaConfig.Rt.Lights.RIS_CANDIDATES.value()"));
+        assertTrue(host.contains("restirLastRisCandidates = CausticaConfig.Rt.Lights.RIS_CANDIDATES.value();"));
         assertTrue(host.contains("restirLastMaterialEpoch == RtMaterialRegistry.INSTANCE.epoch()"));
         assertTrue(host.contains("restirLastMaterialEpoch = RtMaterialRegistry.INSTANCE.epoch();"));
         assertTrue(host.contains("restirLastWorld == Minecraft.getInstance().level"));
@@ -148,9 +156,35 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(lighting.contains("separationSq < 0.25 * 0.25"));
         assertTrue(lighting.contains("dot(receiverNormal, neighborNormal) > 0.95"));
         assertTrue(lighting.contains("abs(neighbor.receiverPosRoughness.w - receiverRoughness) < 0.15"));
-        // No material/proposal identity is stored in the history yet: the
-        // production raygen must not consume neighbors from this helper alone.
+        // Material and temporal proposal-cell identity are stored, but the geometry
+        // helper does not validate them or provide spatial MIS/visibility barriers.
         assertFalse(indirect.contains("restirSpatialGeometryCompatible("));
+    }
+
+    @Test
+    void temporalProposalFamilyRequiresTheSameJitteredGridCell() throws IOException {
+        String lighting = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
+        String indirect = Files.readString(ROOT.resolve("shaders/pipelines/world/indirect.rgen.slang"));
+        assertTrue(lighting.contains("public uint3 restirProposalCellKey("));
+        assertTrue(lighting.contains(
+                "pathSample3(risSampler, PATH_DIM_RIS_GRID_X) - 0.5"));
+        assertTrue(lighting.contains("if (!findLightGridCell(gridLookup, cell, cellCoord))"));
+        assertTrue(lighting.contains("return uint3(0xffffffffu);"));
+        assertTrue(lighting.contains("return uint3(cellCoord);"));
+        assertTrue(lighting.contains("h.receiverIdentity = uint4(materialId, proposalCellKey);"));
+        assertTrue(indirect.contains("all(prev.receiverIdentity.yzw == proposalCellKey)"));
+
+        // Bit-exact cell identity is required. Different valid grid cells cannot
+        // share a history reservoir, nor can a global-only proposal mimic a cell.
+        int global = -1;
+        assertTrue(sameProposalCell(global, global, global, global, global, global));
+        assertTrue(sameProposalCell(4, 8, 2, 4, 8, 2));
+        assertFalse(sameProposalCell(4, 8, 2, 5, 8, 2));
+        assertFalse(sameProposalCell(4, 8, 2, global, global, global));
+    }
+
+    private static boolean sameProposalCell(int ax, int ay, int az, int bx, int by, int bz) {
+        return ax == bx && ay == by && az == bz;
     }
 
     private static int occurrences(String src, String fragment) {

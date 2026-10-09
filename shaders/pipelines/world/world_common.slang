@@ -182,6 +182,7 @@ public struct Payload {
     public uint   emissionSss; // packHalf2x16(emission, sss)
     public uint   iorTransmission; // packHalf2x16(IOR, transmission factor)
     public uint   rayCone;     // packHalf2x16(width, spread)
+    public uint   materialId;  // authored material-table index; invalid on miss/guide
 };
 
 public static const uint PAYLOAD_SHOW_CELESTIAL = 4u;
@@ -202,6 +203,7 @@ public static const uint EMISSION_SOURCE_UNIFORM = 1u;
 public static const uint EMISSION_SOURCE_HEURISTIC = 2u;
 public static const uint EMISSION_SOURCE_LAB_PBR = 3u;
 
+public static const uint PAYLOAD_INVALID_MATERIAL_ID = 0xffffffffu;
 public static const uint PAYLOAD_MATERIAL_MASK = 3u;
 public static const uint MATERIAL_OPAQUE = 0u;
 // Both dielectrics are volumes: they refract and push a participating medium. They stay distinct ids

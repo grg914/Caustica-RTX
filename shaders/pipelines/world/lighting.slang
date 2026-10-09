@@ -34,13 +34,15 @@ public Reservoir resEmpty() {
 }
 
 // One primary receiver sample per render pixel, two alternating device-local
-// buffers. Five float4 lanes (80 B) keep the GPU address stride stable.
+// buffers. Five float4 lanes and one uint4 identity lane (96 B total).
+// Read/write BDA buffers and the Java allocation stride must match this ABI.
 public struct RestirHistory {
     public float4 samplePosArea;
     public float4 sampleNormalWeight;
     public float4 sampleEmissionCount;
     public float4 receiverPosRoughness;
     public float4 receiverNormalValid;
+    public uint4 receiverIdentity;  // x = material ID; yzw = exact RIS proposal grid cell (all 0xffffffff = global)
 }
 
 public RestirHistory restirInvalidHistory() {
@@ -50,25 +52,28 @@ public RestirHistory restirInvalidHistory() {
     h.sampleEmissionCount = float4(0.0);
     h.receiverPosRoughness = float4(0.0);
     h.receiverNormalValid = float4(0.0);
+    h.receiverIdentity = uint4(PAYLOAD_INVALID_MATERIAL_ID, 0xffffffffu, 0xffffffffu, 0xffffffffu);
     return h;
 }
 
-public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough) {
+public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough,
+                                uint materialId, uint3 proposalCellKey) {
     RestirHistory h;
     h.samplePosArea = float4(r.pos, r.area);
     h.sampleNormalWeight = float4(r.lnrm, r.W);
     h.sampleEmissionCount = float4(r.le, r.M);
     h.receiverPosRoughness = float4(hitPos, rough);
-    h.receiverNormalValid = float4(n, r.W > 0.0 ? 1.0 : 0.0);
+    h.receiverNormalValid = float4(n, r.W > 0.0 && materialId != PAYLOAD_INVALID_MATERIAL_ID ? 1.0 : 0.0);
+    h.receiverIdentity = uint4(materialId, proposalCellKey);
     return h;
 }
 
 // Geometry-only acceptance rule for prospective spatial neighbors.
-// Important: RestirHistory does not yet retain a material identifier or a
-// proposal-family identifier. Therefore this predicate MUST NOT independently
-// authorize spatial reservoir consumption in the production estimator.
-// A future opt-in spatial pass must add material/proposal checks, derive proper
-// target-PDF/MIS weighting, and synchronize neighbor reads before using it.
+// History stores material and the jitter-selected temporal RIS proposal cell.
+// This geometry-only predicate does not check either identity or establish
+// spatial MIS normalization. It MUST NOT authorize spatial reuse by itself.
+// A future spatial pass must validate those identities, use correct proposal
+// weights, and synchronize neighbor reads before consuming their reservoirs.
 public bool restirSpatialGeometryCompatible(RestirHistory neighbor,
                                              float3 receiverPos, float3 receiverNormal,
                                              float receiverRoughness) {
@@ -225,6 +230,24 @@ public bool findLightGridCell(float3 p, out LightGridCell cell, out int3 cellCoo
         return false;
     }
     return true;
+}
+
+// The proposal mix is global-only or belongs to one jitter-selected grid cell.
+// Recompute the same deterministic RIS jitter as risInitial for temporal reuse;
+// matching this exact key prevents carrying a reservoir to a different qCell.
+// This conservative gate does not by itself establish unbiased temporal MIS.
+public uint3 restirProposalCellKey(float3 hitPos, in PathSampler risSampler) {
+    LightGridCell cell;
+    int3 cellCoord;
+    float3 gridLookup = hitPos;
+    if (pc.lightGridCellAddr != 0) {
+        gridLookup += (pathSample3(risSampler, PATH_DIM_RIS_GRID_X) - 0.5)
+                * worldPush.lightGridOrigin.w;
+    }
+    if (!findLightGridCell(gridLookup, cell, cellCoord)) {
+        return uint3(0xffffffffu);
+    }
+    return uint3(cellCoord);
 }
 
 public void selectSectionLight(uint firstLight, uint lightCount, in PathSampler risSampler, uint dimension,

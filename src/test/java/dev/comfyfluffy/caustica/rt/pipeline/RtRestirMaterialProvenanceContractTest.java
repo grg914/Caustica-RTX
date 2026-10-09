@@ -5,20 +5,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Fail-closed provenance contract for a future spatial ReSTIR implementation.
- * Primitive material IDs currently exist at closest hit, but only coarse
- * categories pass to indirect lighting. Spatial reuse must not silently
- * treat MATERIAL_OPAQUE as a unique material identity.
+ * Authored material IDs must propagate through closest-hit and the temporal
+ * reservoir. Spatial reuse stays disabled until proposal compatibility,
+ * target-PDF/MIS weighting and synchronization are validated.
  */
 final class RtRestirMaterialProvenanceContractTest {
     private static final Path ROOT = Path.of(System.getProperty("user.dir"));
 
     @Test
-    void primitiveMaterialIdentityExistsButIsNotYetInHistory() throws IOException {
+    void primitiveMaterialIdentityPropagatesToHistoryButSpatialReuseStaysOff() throws IOException {
         String common = Files.readString(ROOT.resolve("shaders/pipelines/world/world_common.slang"));
         String closest = Files.readString(ROOT.resolve("shaders/pipelines/world/closest_hit.rchit.slang"));
         String lighting = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
@@ -33,7 +34,23 @@ final class RtRestirMaterialProvenanceContractTest {
         int end = lighting.indexOf("}", start);
         assertTrue(start >= 0 && end > start);
         String history = lighting.substring(start, end);
-        assertFalse(history.contains("materialId"));
+        assertTrue(history.contains("receiverIdentity"));
+        assertTrue(indirect.contains("prev.receiverIdentity.x == payload.materialId"));
+        assertTrue(closest.contains("payload.materialId = pr.materialId;"));
+        assertTrue(common.contains("public uint   materialId;"));
+        assertTrue(common.contains("PAYLOAD_INVALID_MATERIAL_ID = 0xffffffffu"));
+        String trace = Files.readString(ROOT.resolve("shaders/pipelines/world/trace.slang"));
+        String host = Files.readString(ROOT.resolve(
+                "src/main/java/dev/comfyfluffy/caustica/rt/RtComposite.java"));
+        assertEquals(3, occurrences(closest, "payload.materialId = pr.materialId;"));
+        assertTrue(trace.contains("p.materialId = PAYLOAD_INVALID_MATERIAL_ID;"));
+        assertTrue(trace.contains("shadowPayload.materialId = PAYLOAD_INVALID_MATERIAL_ID;"));
+        assertTrue(lighting.contains("h.receiverIdentity = uint4(materialId, proposalCellKey);"));
+        assertTrue(indirect.contains("all(prev.receiverIdentity.yzw == proposalCellKey)"));
+        assertTrue(lighting.contains("r.W > 0.0 && materialId != PAYLOAD_INVALID_MATERIAL_ID"));
+        assertTrue(indirect.contains("restirStore(r, hitPos, n, rough, payload.materialId, proposalCellKey)"));
+        assertTrue(host.contains("RESTIR_HISTORY_STRIDE_BYTES = 96L"));
+        assertTrue(host.contains("restirLastMaterialEpoch == RtMaterialRegistry.INSTANCE.epoch()"));
         assertFalse(indirect.contains("restirSpatialGeometryCompatible("));
     }
 
@@ -47,6 +64,14 @@ final class RtRestirMaterialProvenanceContractTest {
         // Material equality must compare stable authored IDs, not categories.
         assertFalse(sameMaterial(opaqueA, opaqueB));
         assertTrue(sameMaterial(opaqueA, opaqueA));
+    }
+
+    private static int occurrences(String haystack, String needle) {
+        int count = 0;
+        for (int at = 0; (at = haystack.indexOf(needle, at)) >= 0; at += needle.length()) {
+            count++;
+        }
+        return count;
     }
 
     static boolean sameMaterial(int center, int candidate) {

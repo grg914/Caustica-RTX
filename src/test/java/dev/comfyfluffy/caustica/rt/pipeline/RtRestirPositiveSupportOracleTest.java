@@ -73,6 +73,8 @@ final class RtRestirPositiveSupportOracleTest {
                 "shaders/pipelines/world/indirect.rgen.slang"));
         assertTrue(light.contains("RESTIR_TEMPORAL_TARGET_FLOOR = 1.0e-3"));
         assertTrue(light.contains("return max(physicalTarget, RESTIR_TEMPORAL_TARGET_FLOOR);"));
+        assertTrue(light.contains("if (!(physicalTarget >= 0.0 && physicalTarget < 1.0e20))"));
+        assertTrue(light.contains("return 0.0;"));
         assertTrue(light.contains("bool temporalFullSupport)"));
         assertTrue(light.contains("temporalFullSupport ? restirSelectionTarget(phat) : phat"));
         assertTrue(light.contains("reservoirOffer(r, sp, lightNormal, le, area, selectionTarget"));

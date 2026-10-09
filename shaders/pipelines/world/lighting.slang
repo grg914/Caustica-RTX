@@ -16,6 +16,11 @@ import trace;
 public static const float RESTIR_TEMPORAL_TARGET_FLOOR = 1.0e-3;
 
 public float restirSelectionTarget(float physicalTarget) {
+    // Fail closed on corrupted light/BSDF evaluations before the positive
+    // surrogate floor; NaN, infinity or negative targets are not reservoirs.
+    if (!(physicalTarget >= 0.0 && physicalTarget < 1.0e20)) {
+        return 0.0;
+    }
     return max(physicalTarget, RESTIR_TEMPORAL_TARGET_FLOOR);
 }
 

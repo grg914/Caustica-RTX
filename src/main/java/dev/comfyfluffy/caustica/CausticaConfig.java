@@ -101,7 +101,7 @@ public final class CausticaConfig {
                 " Lightweight Caustica-native post-processing. These effects run in the Caustica pipeline and do not require Iris/Sodium.\n"
                         + " scandi-shader enables the converted ScandiShader DERCODE-style grade without importing incompatible Iris renderer passes.");
         FILE.setComment("performance",
-                " RT quality presets for RTX hardware. Quality prioritizes indirect lighting and image detail,\\n"
+                " RT quality presets for RTX hardware. Quality prioritizes indirect lighting and image detail, "
                         + " Balanced limits trace cost, and Max FPS is the most aggressive. All are optional.");
         FILE.setComment("frame-generation",
                 " DLSS Frame Generation. Requires supported NVIDIA hardware and drivers.\n"

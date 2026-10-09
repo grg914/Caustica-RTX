@@ -33,6 +33,56 @@ public Reservoir resEmpty() {
     return r;
 }
 
+// One primary receiver sample per render pixel, two alternating device-local
+// buffers. Five float4 lanes (80 B) keep the GPU address stride stable.
+public struct RestirHistory {
+    public float4 samplePosArea;
+    public float4 sampleNormalWeight;
+    public float4 sampleEmissionCount;
+    public float4 receiverPosRoughness;
+    public float4 receiverNormalValid;
+}
+
+public RestirHistory restirInvalidHistory() {
+    RestirHistory h;
+    h.samplePosArea = float4(0.0);
+    h.sampleNormalWeight = float4(0.0);
+    h.sampleEmissionCount = float4(0.0);
+    h.receiverPosRoughness = float4(0.0);
+    h.receiverNormalValid = float4(0.0);
+    return h;
+}
+
+public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rough) {
+    RestirHistory h;
+    h.samplePosArea = float4(r.pos, r.area);
+    h.sampleNormalWeight = float4(r.lnrm, r.W);
+    h.sampleEmissionCount = float4(r.le, r.M);
+    h.receiverPosRoughness = float4(hitPos, rough);
+    h.receiverNormalValid = float4(n, r.W > 0.0 ? 1.0 : 0.0);
+    return h;
+}
+
+// Reweight a previous frame's representative light under the current receiver.
+// The finite, positive checks protect the reservoir normalization if a GPU
+// history record becomes invalid; no clamping of the light contribution is used.
+public float restirHistoryCandidateWeight(RestirHistory previous, float target, float maxEffectiveM,
+                                            out float effectiveM) {
+    effectiveM = 0.0;
+    float previousWeight = previous.sampleNormalWeight.w;
+    float previousM = previous.sampleEmissionCount.w;
+    float area = previous.samplePosArea.w;
+    if (!(previous.receiverNormalValid.w > 0.5 && previousWeight > 0.0
+            && previousWeight < 1.0e20 && previousM >= 1.0
+            && previousM < 1.0e10 && area > 0.0 && area < 1.0e10
+            && target > 0.0 && target < 1.0e20 && maxEffectiveM > 0.0)) {
+        return 0.0;
+    }
+    effectiveM = min(previousM, maxEffectiveM);
+    float candidateWeight = target * previousWeight * effectiveM;
+    return candidateWeight > 0.0 && candidateWeight < 1.0e20 ? candidateWeight : 0.0;
+}
+
 // Streaming reservoir selection shared by the emitter RIS candidate path.
 // Selection takes a uniform variate in [0,1); the surviving sample is chosen
 // proportionally to its importance weight without emitting visibility rays.

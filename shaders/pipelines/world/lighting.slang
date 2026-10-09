@@ -63,6 +63,26 @@ public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rou
     return h;
 }
 
+// Reweight a previous frame's representative light under the current receiver.
+// The finite, positive checks protect the reservoir normalization if a GPU
+// history record becomes invalid; no clamping of the light contribution is used.
+public float restirHistoryCandidateWeight(RestirHistory previous, float target, float maxEffectiveM,
+                                            out float effectiveM) {
+    effectiveM = 0.0;
+    float previousWeight = previous.sampleNormalWeight.w;
+    float previousM = previous.sampleEmissionCount.w;
+    float area = previous.samplePosArea.w;
+    if (!(previous.receiverNormalValid.w > 0.5 && previousWeight > 0.0
+            && previousWeight < 1.0e20 && previousM >= 1.0
+            && previousM < 1.0e10 && area > 0.0 && area < 1.0e10
+            && target > 0.0 && target < 1.0e20 && maxEffectiveM > 0.0)) {
+        return 0.0;
+    }
+    effectiveM = min(previousM, maxEffectiveM);
+    float candidateWeight = target * previousWeight * effectiveM;
+    return candidateWeight > 0.0 && candidateWeight < 1.0e20 ? candidateWeight : 0.0;
+}
+
 // Streaming reservoir selection shared by the emitter RIS candidate path.
 // Selection takes a uniform variate in [0,1); the surviving sample is chosen
 // proportionally to its importance weight without emitting visibility rays.

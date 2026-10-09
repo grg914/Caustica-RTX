@@ -355,13 +355,11 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                                         prev.samplePosArea.w,
                                         hitPos, n, v, rd, diffAlb, F0, rough,
                                         false, activeSss, prevTarget);
-                                float effectiveM = min(prev.sampleEmissionCount.w,
-                                        float(worldPush.risCandidates) * 4.0);
-                                float contributionWeight =
-                                        prevTarget * prev.sampleNormalWeight.w * effectiveM;
-                                if (effectiveM > 0.0 && prevTarget > 0.0
-                                        && contributionWeight > 0.0
-                                        && contributionWeight < 1.0e20) {
+                                float effectiveM;
+                                float contributionWeight = restirHistoryCandidateWeight(
+                                        prev, prevTarget, float(worldPush.risCandidates) * 4.0,
+                                        effectiveM);
+                                if (contributionWeight > 0.0) {
                                     PathSampler temporalSampler = pathSamplerWithGroup(
                                             risSampler, PATH_GROUP_RIS_TEMPORAL);
                                     reservoirOffer(r, prev.samplePosArea.xyz,

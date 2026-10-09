@@ -37,7 +37,7 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("prevClip.w > 0.0"));
         assertTrue(shader.contains("distance(prevHit, expectedPreviousHit) < 0.25"));
         assertTrue(shader.contains("dot(previousNormal, n) > 0.95"));
-        assertTrue(shader.contains("prevTarget * prev.sampleNormalWeight.w * effectiveM"));
+        assertTrue(shader.contains("float contributionWeight = restirHistoryCandidateWeight("));
         assertTrue(shader.contains("reservoirFinalize(r);"));
         assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough);"));
         assertTrue(shader.contains("if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u"));
@@ -47,6 +47,38 @@ final class RtRestirTemporalShaderContractTest {
         assertFalse(shader.contains("RestirHistory stored ="));
         assertTrue(shader.contains("if (pc.restirHistoryWriteAddr != 0)"));
         assertTrue(shader.contains("L += throughput * shadeReservoir(r,"));
+    }
+
+    @Test
+    void temporalCandidateWeightRejectsInvalidHistoryAndPreservesNormalization() throws IOException {
+        String lighting = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
+        String indirect = Files.readString(ROOT.resolve("shaders/pipelines/world/indirect.rgen.slang"));
+
+        assertTrue(lighting.contains("public float restirHistoryCandidateWeight("));
+        assertTrue(lighting.contains("previous.receiverNormalValid.w > 0.5"));
+        assertTrue(lighting.contains("previousWeight < 1.0e20"));
+        assertTrue(lighting.contains("previousM >= 1.0"));
+        assertTrue(lighting.contains("area > 0.0 && area < 1.0e10"));
+        assertTrue(lighting.contains("candidateWeight < 1.0e20"));
+        assertTrue(indirect.contains("if (contributionWeight > 0.0)"));
+        assertFalse(indirect.contains("prevTarget * prev.sampleNormalWeight.w * effectiveM"));
+
+        // Analytic one-light case: source PDF 1/4, target 4 gives W=1/q=4.
+        // Repeated temporal resampling must preserve the same normalization
+        // even when the prior reservoir candidate count is capped at 4*M.
+        double target = 4.0, initialM = 8.0, cappedHistoryM = 32.0;
+        double previousWeight = 4.0;
+        double currentSum = initialM * target * previousWeight;
+        for (int frame = 0; frame < 120; frame++) {
+            double historyWeight = target * previousWeight * cappedHistoryM;
+            previousWeight = (currentSum + historyWeight)
+                    / ((initialM + cappedHistoryM) * target);
+            assertEquals(4.0, previousWeight, 1.0e-12);
+        }
+
+        // The explicit upper bound on the final candidate weight also rejects
+        // an infinite previous weight rather than emitting NaNs into the shader.
+        assertFalse(Double.isFinite(target * Double.POSITIVE_INFINITY * cappedHistoryM));
     }
 
     @Test

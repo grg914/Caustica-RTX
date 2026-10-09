@@ -333,9 +333,13 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                     float3 prevSurface = hitPos - float3(payload.motionPrev);
                     float4 prevClip = mul(worldPush.prevViewProj,
                             float4(prevSurface - worldPush.camOffset + worldPush.camDelta, 1.0));
-                    if (prevClip.w > 0.0) {
+                    // Reject malformed projected coordinates before float-to-int
+                    // conversion: NaN/Inf coordinates have undefined pixel indices.
+                    if (prevClip.w > 0.0 && prevClip.w < 1.0e20
+                            && all(abs(prevClip.xyz) < float3(1.0e20))) {
                         float2 prevUv = prevClip.xy / prevClip.w * 0.5 + 0.5;
                         uint2 size = DispatchRaysDimensions().xy;
+                        if (all(prevUv >= float2(0.0)) && all(prevUv < float2(1.0))) {
                         int2 previousPixel = int2(floor(prevUv * float2(size)));
                         if (all(previousPixel >= int2(0)) && all(previousPixel < int2(size))) {
                             uint prevIndex = uint(previousPixel.y) * size.x + uint(previousPixel.x);
@@ -382,6 +386,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                                     reservoirFinalize(r);
                                 }
                             }
+                        }
                         }
                     }
                 }

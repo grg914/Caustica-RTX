@@ -63,6 +63,37 @@ public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rou
     return h;
 }
 
+// Geometry-only acceptance rule for prospective spatial neighbors.
+// Important: RestirHistory does not yet retain a material identifier or a
+// proposal-family identifier. Therefore this predicate MUST NOT independently
+// authorize spatial reservoir consumption in the production estimator.
+// A future opt-in spatial pass must add material/proposal checks, derive proper
+// target-PDF/MIS weighting, and synchronize neighbor reads before using it.
+public bool restirSpatialGeometryCompatible(RestirHistory neighbor,
+                                             float3 receiverPos, float3 receiverNormal,
+                                             float receiverRoughness) {
+    if (!(neighbor.receiverNormalValid.w > 0.5)) return false;
+    float3 neighborPos = neighbor.receiverPosRoughness.xyz;
+    float3 neighborNormal = neighbor.receiverNormalValid.xyz;
+    float centerLengthSq = dot(receiverNormal, receiverNormal);
+    float neighborLengthSq = dot(neighborNormal, neighborNormal);
+    float separationSq = dot(neighborPos - receiverPos, neighborPos - receiverPos);
+    if (!(abs(centerLengthSq - 1.0) <= 1.0e-3
+            && abs(neighborLengthSq - 1.0) <= 1.0e-3
+            && separationSq < 0.25 * 0.25
+            && dot(receiverNormal, neighborNormal) > 0.95
+            && abs(neighbor.receiverPosRoughness.w - receiverRoughness) < 0.15)) {
+        return false;
+    }
+    // All comparisons above intentionally fail closed for NaN; reject infinity
+    // explicitly to prevent false acceptance from arithmetic cancellation.
+    return all(abs(neighborPos) < float3(1.0e20))
+            && all(abs(receiverPos) < float3(1.0e20))
+            && all(abs(neighborNormal) < float3(1.0e20))
+            && all(abs(receiverNormal) < float3(1.0e20))
+            && abs(receiverRoughness) < 1.0e20;
+}
+
 // Reweight a previous frame's representative light under the current receiver.
 // The finite, positive checks protect the reservoir normalization if a GPU
 // history record becomes invalid; no clamping of the light contribution is used.

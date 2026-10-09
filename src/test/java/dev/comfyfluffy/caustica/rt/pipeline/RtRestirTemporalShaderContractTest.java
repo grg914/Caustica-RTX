@@ -156,8 +156,8 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(lighting.contains("separationSq < 0.25 * 0.25"));
         assertTrue(lighting.contains("dot(receiverNormal, neighborNormal) > 0.95"));
         assertTrue(lighting.contains("abs(neighbor.receiverPosRoughness.w - receiverRoughness) < 0.15"));
-        // Material identity is stored, but proposal identity/MIS is still missing: the
-        // production raygen must not consume neighbors from this helper alone.
+        // Material and temporal proposal-cell identity are stored, but the geometry
+        // helper does not validate them or provide spatial MIS/visibility barriers.
         assertFalse(indirect.contains("restirSpatialGeometryCompatible("));
     }
 

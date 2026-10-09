@@ -69,11 +69,11 @@ public RestirHistory restirStore(Reservoir r, float3 hitPos, float3 n, float rou
 }
 
 // Geometry-only acceptance rule for prospective spatial neighbors.
-// Important: RestirHistory now retains material identity but still lacks
-// proposal-family identity. Therefore this geometry predicate MUST NOT independently
-// authorize spatial reservoir consumption in the production estimator.
-// A future opt-in spatial pass must add material/proposal checks, derive proper
-// target-PDF/MIS weighting, and synchronize neighbor reads before using it.
+// History stores material and the jitter-selected temporal RIS proposal cell.
+// This geometry-only predicate does not check either identity or establish
+// spatial MIS normalization. It MUST NOT authorize spatial reuse by itself.
+// A future spatial pass must validate those identities, use correct proposal
+// weights, and synchronize neighbor reads before consuming their reservoirs.
 public bool restirSpatialGeometryCompatible(RestirHistory neighbor,
                                              float3 receiverPos, float3 receiverNormal,
                                              float receiverRoughness) {

@@ -12,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Fail-closed provenance contract for a future spatial ReSTIR implementation.
  * Authored material IDs must propagate through closest-hit and the temporal
- * reservoir. Spatial reuse must still remain disabled until proposal identity,
- * target-PDF weighting and synchronization have been validated.
+ * reservoir. Spatial reuse stays disabled until proposal compatibility,
+ * target-PDF/MIS weighting and synchronization are validated.
  */
 final class RtRestirMaterialProvenanceContractTest {
     private static final Path ROOT = Path.of(System.getProperty("user.dir"));

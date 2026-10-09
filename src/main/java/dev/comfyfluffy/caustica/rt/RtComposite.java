@@ -204,6 +204,7 @@ public final class RtComposite {
     private boolean restirHistoryValid;
     private boolean renderSizeRestirEnabled;
     private long restirLastLightGeneration = Long.MIN_VALUE;
+    private long restirLastFrameSerial = Long.MIN_VALUE;
     private Object restirLastWorld;
     private int restirLastTerrainX, restirLastTerrainY, restirLastTerrainZ;
     private int restirLastPathEpoch;
@@ -1114,6 +1115,7 @@ public final class RtComposite {
         restirHistoryReadSlot = 0;
         restirHistoryValid = false;
         restirLastLightGeneration = Long.MIN_VALUE;
+        restirLastFrameSerial = Long.MIN_VALUE;
         restirLastWorld = null;
     }
 
@@ -1185,10 +1187,14 @@ public final class RtComposite {
         boolean restirFrame = restirHistory[0] != null && restirHistory[1] != null
                 && terrain != null && terrain.lightCount() > 0
                 && CausticaConfig.Rt.Lights.RESTIR_DI.value();
+        // Reuse only a contiguous rendered frame. Skipped world/menu frames do not
+        // update history, and camera teleports must not join unrelated receivers.
         boolean restirReadValid = restirFrame && restirHistoryValid && mvHasPrev
+                && restirLastFrameSerial == frameCounter - 1
                 && restirLastWorld == Minecraft.getInstance().level
-                && Math.abs(mvCamDeltaX) < 8f && Math.abs(mvCamDeltaY) < 8f
-                && Math.abs(mvCamDeltaZ) < 8f
+                && (double) mvCamDeltaX * mvCamDeltaX
+                        + (double) mvCamDeltaY * mvCamDeltaY
+                        + (double) mvCamDeltaZ * mvCamDeltaZ < 64.0
                 && restirLastLightGeneration == terrain.lightGeneration()
                 && restirLastTerrainX == terrain.blockX
                 && restirLastTerrainY == terrain.blockY
@@ -1499,6 +1505,7 @@ public final class RtComposite {
             restirHistoryReadSlot = 1 - restirHistoryReadSlot;
             restirHistoryValid = true;
             restirLastLightGeneration = terrain.lightGeneration();
+            restirLastFrameSerial = frameCounter;
             restirLastWorld = Minecraft.getInstance().level;
             restirLastTerrainX = terrain.blockX;
             restirLastTerrainY = terrain.blockY;

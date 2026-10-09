@@ -31,6 +31,9 @@ final class RtRestirTemporalShaderContractTest {
     void temporalReuseGuardsSurfaceReprojectionAndPreservesFallback() throws IOException {
         String shader = Files.readString(ROOT.resolve("shaders/pipelines/world/indirect.rgen.slang"));
         assertTrue(shader.contains("if (pc.restirHistoryReadAddr != 0)"));
+        assertTrue(shader.contains("pathSamplerWithGroup("));
+        assertTrue(shader.contains("risSampler, PATH_GROUP_RIS_TEMPORAL)"));
+        assertFalse(shader.contains("PATH_GROUP_RIS_CANDIDATE_FIRST + 128u"));
         assertTrue(shader.contains("prevClip.w > 0.0"));
         assertTrue(shader.contains("distance(prevHit, expectedPreviousHit) < 0.25"));
         assertTrue(shader.contains("dot(previousNormal, n) > 0.95"));
@@ -57,10 +60,19 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(host.contains("restirLastLightGeneration == terrain.lightGeneration()"));
         assertTrue(host.contains("restirLastWorld == Minecraft.getInstance().level"));
         assertTrue(host.contains("restirLastPathEpoch == pathSampleEpoch"));
-        assertTrue(host.contains("Math.abs(mvCamDeltaX) < 8f"));
+        assertTrue(host.contains("restirLastFrameSerial == frameCounter - 1"));
+        assertTrue(host.contains("restirLastFrameSerial = frameCounter;"));
+        assertTrue(host.contains("(double) mvCamDeltaZ * mvCamDeltaZ < 64.0"));
         assertTrue(host.contains("destroyRestirHistory();"));
         assertTrue(common.contains("public uint64_t restirHistoryReadAddr;"));
         assertTrue(common.contains("public uint64_t restirHistoryWriteAddr;"));
+        String sampler = Files.readString(ROOT.resolve("shaders/pipelines/world/math.slang"));
+        String javaRoots = Files.readString(ROOT.resolve(
+                "src/main/java/dev/comfyfluffy/caustica/rt/pipeline/RtPathSamplerData.java"));
+        assertTrue(sampler.contains("PATH_GROUP_CELESTIAL = 68u;"));
+        assertTrue(sampler.contains("PATH_GROUP_RIS_TEMPORAL = 69u;"));
+        assertTrue(sampler.contains("PATH_GROUP_COUNT = 70u;"));
+        assertTrue(javaRoots.contains("GROUP_COUNT = 3 + 1 + MAX_RIS_CANDIDATES * 2 + 1 + 1;"));
         assertFalse(host.contains("restirHistoryValid = true; // optimistic"));
     }
 

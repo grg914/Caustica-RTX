@@ -357,7 +357,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                                         && contributionWeight > 0.0
                                         && contributionWeight < 1.0e20) {
                                     PathSampler temporalSampler = pathSamplerWithGroup(
-                                            risSampler, PATH_GROUP_RIS_CANDIDATE_FIRST + 128u);
+                                            risSampler, PATH_GROUP_RIS_TEMPORAL);
                                     reservoirOffer(r, prev.samplePosArea.xyz,
                                             prev.sampleNormalWeight.xyz,
                                             prev.sampleEmissionCount.xyz,

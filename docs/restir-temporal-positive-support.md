@@ -41,3 +41,9 @@ For each positive-selection floor `0.001`, `0.1` and `1.0` and effective history
 The final frame with `historyCap=4` has toy-model variance approximately `225.29` at floor `0.001` and `122.50` at floor `0.1`; reducing the history cap to `1` at floor `0.001` yields approximately `48.56`. A new-frame-only RIS comparison has variance approximately `9.57` in this case. These results show that **capping history reduces but does not solve variance**, while simply increasing the floor can still leave temporal estimation much noisier than fresh RIS.
 
 Do not infer production-safe epsilon or history caps from these numbers. Preserve default-off experimental ReSTIR until a mathematically reviewed variance policy and final Vulkan/RTX visual acceptance exist.
+
+## Conservative experimental history weighting
+
+The temporal path now caps each reused reservoir at **one effective history candidate** (`RESTIR_TEMPORAL_MAX_EFFECTIVE_M = 1.0`), rather than the earlier allowance of `4 × risCandidates`. The new-frame candidate count, reservoir finalization formula, physical shading and ordinary RIS path are unchanged. This deliberately favors fresh proposals while multi-frame variance remains unvalidated on GPU.
+
+The three-frame deterministic oracle already exercises `historyCap=1` and `historyCap=4` with matching expected means. In its support-change case (selection floor `0.001`), cap one reduces third-frame variance from approximately `225.29` to `48.56`, still above fresh-only RIS (approximately `9.57`). These results motivate a **conservative experimental limit**, not a guarantee of better real-world image quality. Retain ReSTIR default OFF, monitor this quality/variance trade-off during final Vulkan/RTX validation, and do not merge into production based solely on CI.

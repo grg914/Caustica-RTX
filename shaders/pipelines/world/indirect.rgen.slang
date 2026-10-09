@@ -381,7 +381,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                                 float prevSelectionTarget = restirSelectionTarget(prevTarget);
                                 float effectiveM;
                                 float contributionWeight = restirHistoryCandidateWeight(
-                                        prev, prevSelectionTarget, float(worldPush.risCandidates) * 4.0,
+                                        prev, prevSelectionTarget, RESTIR_TEMPORAL_MAX_EFFECTIVE_M,
                                         effectiveM);
                                 if (contributionWeight > 0.0) {
                                     PathSampler temporalSampler = pathSamplerWithGroup(

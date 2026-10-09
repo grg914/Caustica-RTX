@@ -350,6 +350,10 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                             float prevNormalLen2 = dot(previousNormal, previousNormal);
                             float curNormalLen2 = dot(n, n);
                             if (prev.receiverNormalValid.w > 0.5
+                                    && all(abs(prevHit) < float3(1.0e20))
+                                    && all(abs(expectedPreviousHit) < float3(1.0e20))
+                                    && abs(prev.receiverPosRoughness.w) < 1.0e20
+                                    && abs(rough) < 1.0e20
                                     && abs(prevNormalLen2 - 1.0) <= 1.0e-3
                                     && abs(curNormalLen2 - 1.0) <= 1.0e-3
                                     && distance(prevHit, expectedPreviousHit) < 0.25

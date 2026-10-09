@@ -49,7 +49,8 @@ public final class RtVideoOptions {
             boolean particles,
             boolean glow,
             boolean waterWaves,
-            float sharpen) {
+            float sharpen,
+            int dlssQuality) {
     }
 
     private static PerformanceSnapshot performanceSnapshot;
@@ -79,7 +80,7 @@ public final class RtVideoOptions {
      */
     public static OptionInstance<?>[] runtimeOptions() {
         List<OptionInstance<?>> options = new ArrayList<>(List.of(
-            rtxPerformanceMode(),
+            rtxQualityPreset(),
             exposureMode(),
             manualEv(),
             exposureLowPercentile(),
@@ -244,27 +245,88 @@ public final class RtVideoOptions {
         return Component.translatable("caustica.options.rt.toneMapper." + name);
     }
 
-    private static OptionInstance<Boolean> rtxPerformanceMode() {
-        BooleanSetting setting = CausticaConfig.Rt.Performance.MODE;
+    // A manual change to any value controlled by a preset turns it into Custom.
+    // The edited values, not the pre-preset snapshot, are now the user's tuning.
+    private static void manualPresetOverride() {
+        CausticaConfig.Rt.Performance.QUALITY.set(false);
+        CausticaConfig.Rt.Performance.BALANCED.set(false);
+        CausticaConfig.Rt.Performance.MODE.set(false);
+        performanceSnapshot = null;
+    }
+
+    private static void manualPresetInt(IntSetting setting, int value) {
+        if (setting.value() != value) {
+            setting.set(value);
+            manualPresetOverride();
+        }
+    }
+
+    private static OptionInstance<Boolean> presetBoolean(String captionKey, BooleanSetting setting) {
         return OptionInstance.createBoolean(
-            "caustica.options.rt.performanceMode",
-            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.performanceMode.tooltip")),
-            setting.value(),
-            enabled -> {
-                setting.set(enabled);
-                if (enabled) {
-                    // Treat Performance Mode as a reversible preset rather than destructive settings.
-                    // Save the user's live tuning once, then restore it when the preset is turned off.
-                    if (performanceSnapshot == null) {
-                        performanceSnapshot = new PerformanceSnapshot(
-                                CausticaConfig.Rt.Composite.SPP.value(),
-                                CausticaConfig.Rt.Composite.MAX_BOUNCES.value(),
-                                CausticaConfig.Rt.Lights.RIS_CANDIDATES.value(),
-                                CausticaConfig.Rt.Entities.PARTICLES_ENABLED.value(),
-                                CausticaConfig.Rt.Entities.GLOW_ENABLED.value(),
-                                CausticaConfig.Rt.Composite.WATER_WAVES.value(),
-                                CausticaConfig.Rt.PostFx.SHARPEN.value());
+                captionKey,
+                OptionInstance.cachedConstantTooltip(Component.translatable(captionKey + ".tooltip")),
+                setting.value(),
+                enabled -> {
+                    if (setting.value() != enabled) {
+                        setting.set(enabled);
+                        manualPresetOverride();
                     }
+                });
+    }
+
+    private static OptionInstance<Integer> rtxQualityPreset() {
+        BooleanSetting quality = CausticaConfig.Rt.Performance.QUALITY;
+        BooleanSetting balanced = CausticaConfig.Rt.Performance.BALANCED;
+        BooleanSetting maxFps = CausticaConfig.Rt.Performance.MODE;
+        int activePreset = quality.value() ? 1 : balanced.value() ? 2 : maxFps.value() ? 3 : 0;
+        return new OptionInstance<>(
+            "caustica.options.rt.qualityPreset",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.qualityPreset.tooltip")),
+            (caption, position) -> Options.genericValueLabel(caption,
+                    Component.translatable("caustica.options.rt.qualityPreset." + position)),
+            new OptionInstance.IntRange(0, 3),
+            activePreset,
+            position -> {
+                int previousPreset = quality.value() ? 1 : balanced.value() ? 2 : maxFps.value() ? 3 : 0;
+                int previousRisCandidates = CausticaConfig.Rt.Lights.RIS_CANDIDATES.value();
+                if (position == previousPreset) {
+                    return;
+                }
+                // Save user tuning only when leaving Custom, not when moving between presets.
+                if (position != 0 && previousPreset == 0 && performanceSnapshot == null) {
+                    performanceSnapshot = new PerformanceSnapshot(
+                            CausticaConfig.Rt.Composite.SPP.value(),
+                            CausticaConfig.Rt.Composite.MAX_BOUNCES.value(),
+                            CausticaConfig.Rt.Lights.RIS_CANDIDATES.value(),
+                            CausticaConfig.Rt.Entities.PARTICLES_ENABLED.value(),
+                            CausticaConfig.Rt.Entities.GLOW_ENABLED.value(),
+                            CausticaConfig.Rt.Composite.WATER_WAVES.value(),
+                            CausticaConfig.Rt.PostFx.SHARPEN.value(),
+                            CausticaConfig.Rt.DlssRr.QUALITY.value());
+                }
+                quality.set(position == 1);
+                balanced.set(position == 2);
+                maxFps.set(position == 3);
+                if (position == 1) {
+                    // Higher quality without doubling path samples on midrange RTX hardware.
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(3);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(8);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(2); // DLSS-RR Quality
+                } else if (position == 2) {
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(2);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(4);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(1); // DLSS-RR Balanced
+                } else if (position == 3) {
                     CausticaConfig.Rt.Composite.SPP.set(1);
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(1);
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(2);
@@ -272,6 +334,7 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Entities.GLOW_ENABLED.set(false);
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(false);
                     CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(0); // DLSS-RR Performance
                 } else if (performanceSnapshot != null) {
                     CausticaConfig.Rt.Composite.SPP.set(performanceSnapshot.spp());
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(performanceSnapshot.maxBounces());
@@ -280,9 +343,10 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Entities.GLOW_ENABLED.set(performanceSnapshot.glow());
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(performanceSnapshot.waterWaves());
                     CausticaConfig.Rt.PostFx.SHARPEN.set(performanceSnapshot.sharpen());
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(performanceSnapshot.dlssQuality());
                     performanceSnapshot = null;
                 } else {
-                    // Session started with the preset already enabled: fall back to source defaults.
+                    // A preset loaded from disk has no in-memory Custom snapshot.
                     CausticaConfig.Rt.Composite.SPP.set(CausticaConfig.Rt.Composite.SPP.defaultValue());
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(CausticaConfig.Rt.Composite.MAX_BOUNCES.defaultValue());
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(CausticaConfig.Rt.Lights.RIS_CANDIDATES.defaultValue());
@@ -290,8 +354,12 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Entities.GLOW_ENABLED.set(CausticaConfig.Rt.Entities.GLOW_ENABLED.defaultValue());
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(CausticaConfig.Rt.Composite.WATER_WAVES.defaultValue());
                     CausticaConfig.Rt.PostFx.SHARPEN.set(CausticaConfig.Rt.PostFx.SHARPEN.defaultValue());
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(CausticaConfig.Rt.DlssRr.QUALITY.defaultValue());
                 }
-                RtTerrain.requestFullClear();
+                // Rebuild emitter residency only when RIS population actually changed.
+                if (CausticaConfig.Rt.Lights.RIS_CANDIDATES.value() != previousRisCandidates) {
+                    RtTerrain.requestFullClear();
+                }
             });
     }
 
@@ -369,7 +437,7 @@ public final class RtVideoOptions {
             (caption, value) -> Options.genericValueLabel(caption, value),
             new OptionInstance.IntRange(1, 8),
             Math.clamp(setting.value(), 1, 8),
-            setting::set);
+            value -> manualPresetInt(setting, value));
     }
 
     private static OptionInstance<Integer> maxBounces() {
@@ -380,7 +448,7 @@ public final class RtVideoOptions {
             (caption, value) -> Options.genericValueLabel(caption, value),
             new OptionInstance.IntRange(1, 8),
             Math.clamp(setting.value(), 1, 8),
-            setting::set);
+            value -> manualPresetInt(setting, value));
     }
 
     private static OptionInstance<Integer> risCandidates() {
@@ -399,6 +467,7 @@ public final class RtVideoOptions {
                     return;
                 }
                 setting.set(value);
+                manualPresetOverride();
                 // Meshing omits emitter records while RIS is disabled; rebuild residency when the
                 // setting changes so the selected light population reaches the next render. DLSS-RR
                 // intentionally keeps its history here: this is a gradual lighting change, not a
@@ -412,11 +481,11 @@ public final class RtVideoOptions {
     }
 
     private static OptionInstance<Boolean> particles() {
-        return bool("caustica.options.rt.particles", CausticaConfig.Rt.Entities.PARTICLES_ENABLED);
+        return presetBoolean("caustica.options.rt.particles", CausticaConfig.Rt.Entities.PARTICLES_ENABLED);
     }
 
     private static OptionInstance<Boolean> waterWaves() {
-        return bool("caustica.options.rt.waterWaves", CausticaConfig.Rt.Composite.WATER_WAVES);
+        return presetBoolean("caustica.options.rt.waterWaves", CausticaConfig.Rt.Composite.WATER_WAVES);
     }
 
     private static OptionInstance<Integer> dlssQuality() {
@@ -431,7 +500,7 @@ public final class RtVideoOptions {
                     Component.translatable("caustica.options.rt.dlssQuality." + steps.get(position))),
             new OptionInstance.IntRange(0, steps.size() - 1),
             initialPosition,
-            position -> setting.set(steps.get(position)));
+            position -> manualPresetInt(setting, steps.get(position)));
     }
 
     private static OptionInstance<Boolean> dlssNeuralRendering() {
@@ -522,7 +591,21 @@ public final class RtVideoOptions {
     }
 
     private static OptionInstance<Integer> postFxSharpen() {
-        return percentage("caustica.options.rt.postFxSharpen", CausticaConfig.Rt.PostFx.SHARPEN, 0, 100);
+        FloatSetting setting = CausticaConfig.Rt.PostFx.SHARPEN;
+        return new OptionInstance<>(
+                "caustica.options.rt.postFxSharpen",
+                OptionInstance.cachedConstantTooltip(
+                        Component.translatable("caustica.options.rt.postFxSharpen.tooltip")),
+                (caption, value) -> Options.genericValueLabel(caption, Component.literal(value + "%")),
+                new OptionInstance.IntRange(0, 100),
+                Math.clamp(Math.round(setting.value() * 100.0f), 0, 100),
+                value -> {
+                    float sharpen = value / 100.0f;
+                    if (Math.round(setting.value() * 100.0f) != value) {
+                        setting.set(sharpen);
+                        manualPresetOverride();
+                    }
+                });
     }
 
     private static OptionInstance<Integer> postFxContrast() {

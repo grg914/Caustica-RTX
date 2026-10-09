@@ -70,6 +70,20 @@ final class CausticaConfigTest {
     }
 
     @Test
+    void rtxQualityBalancedAndMaxFpsPresetsAreOptIn() {
+        CausticaConfig.ensureRegistered();
+        assertFalse(CausticaConfig.Rt.Performance.QUALITY.defaultValue());
+        assertFalse(CausticaConfig.Rt.Performance.BALANCED.defaultValue());
+        assertFalse(CausticaConfig.Rt.Performance.MODE.defaultValue());
+        assertTrue(hasSetting("caustica.rt.performanceQuality"));
+        assertTrue(hasSetting("caustica.rt.performanceBalanced"));
+        assertTrue(hasSetting("caustica.rt.performance"));
+        assertTrue(CausticaConfig.Rt.DlssRr.QUALITY_STEPS.contains(2));
+        assertTrue(CausticaConfig.Rt.DlssRr.QUALITY_STEPS.contains(1));
+        assertTrue(CausticaConfig.Rt.DlssRr.QUALITY_STEPS.contains(0));
+    }
+
+    @Test
     void samplingDefaultsMatchTheRendererProfile() {
         assertEquals(8, CausticaConfig.Rt.Lights.RIS_CANDIDATES.defaultValue());
         assertEquals(4, CausticaConfig.Rt.Composite.MAX_BOUNCES.defaultValue());

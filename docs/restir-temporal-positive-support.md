@@ -31,3 +31,13 @@ The independent finite-state test `RtRestirPositiveSupportOracleTest` enumerates
 In the finite-state three-emitter oracle with a formerly zero-target emitter and two historical candidates, the fixed `1e-3` floor restores the mean of 2.775 but yields an estimator variance of approximately **980.74**. A larger illustrative `0.1` floor reduces that variance to approximately **12.92** while retaining the same mean. The fresh-only RIS comparison has variance approximately **3.94**. These numbers describe a mathematical toy model, **not measured GPU FPS or real-image noise**.
 
 The absolute floor `1e-3` is a provisional numerical choice. A small floor can produce **very high variance** when a previously insignificant light becomes important. It may increase histories of zero-contribution samples and affect path time. Do not characterize this as a complete fix for flicker, ghosting, light additions/removals or biased multi-frame reuse. A real RTX/Vulkan acceptance run, frame-variance/1% lows, denoiser tests and a stronger multi-frame oracle remain required. Do not fuse this experimental PR into stable `main` without demonstrating appropriate behavior and preserving all upstream ReSTIR dependencies.
+
+## Three-frame temporal regression
+
+The independent-proposal finite-state test `RtRestirThreeFrameOracleTest` now enumerates all old and fresh proposal pairs and surviving reservoirs over **three** successive frames. The light contribution and both local/global proposal distributions change on every frame; one emitter's previous physical target starts at zero.
+
+For each positive-selection floor `0.001`, `0.1` and `1.0` and effective history cap `1`, `2` or `4`, the enumerated **three-frame means** match the per-frame direct reference (`5.5`, `2.775`, `4.4`). This establishes only a controlled finite-state expectation under **independent** light proposals. Correlated GPU samples, changing geometry/light identifiers and real temporal image stability are not covered.
+
+The final frame with `historyCap=4` has toy-model variance approximately `225.29` at floor `0.001` and `122.50` at floor `0.1`; reducing the history cap to `1` at floor `0.001` yields approximately `48.56`. A new-frame-only RIS comparison has variance approximately `9.57` in this case. These results show that **capping history reduces but does not solve variance**, while simply increasing the floor can still leave temporal estimation much noisier than fresh RIS.
+
+Do not infer production-safe epsilon or history caps from these numbers. Preserve default-off experimental ReSTIR until a mathematically reviewed variance policy and final Vulkan/RTX visual acceptance exist.

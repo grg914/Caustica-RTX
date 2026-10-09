@@ -10,15 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Fail-closed provenance contract for a future spatial ReSTIR implementation.
- * Primitive material IDs currently exist at closest hit, but only coarse
- * categories pass to indirect lighting. Spatial reuse must not silently
- * treat MATERIAL_OPAQUE as a unique material identity.
+ * Authored material IDs must propagate through closest-hit and the temporal
+ * reservoir. Spatial reuse must still remain disabled until proposal identity,
+ * target-PDF weighting and synchronization have been validated.
  */
 final class RtRestirMaterialProvenanceContractTest {
     private static final Path ROOT = Path.of(System.getProperty("user.dir"));
 
     @Test
-    void primitiveMaterialIdentityExistsButIsNotYetInHistory() throws IOException {
+    void primitiveMaterialIdentityPropagatesToHistoryButSpatialReuseStaysOff() throws IOException {
         String common = Files.readString(ROOT.resolve("shaders/pipelines/world/world_common.slang"));
         String closest = Files.readString(ROOT.resolve("shaders/pipelines/world/closest_hit.rchit.slang"));
         String lighting = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
@@ -33,7 +33,11 @@ final class RtRestirMaterialProvenanceContractTest {
         int end = lighting.indexOf("}", start);
         assertTrue(start >= 0 && end > start);
         String history = lighting.substring(start, end);
-        assertFalse(history.contains("materialId"));
+        assertTrue(history.contains("receiverIdentity"));
+        assertTrue(indirect.contains("prev.receiverIdentity.x == payload.materialId"));
+        assertTrue(closest.contains("payload.materialId = pr.materialId;"));
+        assertTrue(common.contains("public uint   materialId;"));
+        assertTrue(common.contains("PAYLOAD_INVALID_MATERIAL_ID = 0xffffffffu"));
         assertFalse(indirect.contains("restirSpatialGeometryCompatible("));
     }
 

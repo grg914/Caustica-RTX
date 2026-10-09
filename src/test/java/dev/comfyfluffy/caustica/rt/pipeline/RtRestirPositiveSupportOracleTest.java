@@ -55,6 +55,18 @@ final class RtRestirPositiveSupportOracleTest {
     }
 
     @Test
+    void supportFixStillHasLargeVarianceForTinySamplingFloor() {
+        double[] oldPhysical = {2.5, 0.0, 4.0};
+        double lowFloorVariance = moments(oldPhysical, CURRENT_PHYSICAL,
+                VISIBILITY, 0.001, 2).variance();
+        double higherFloorVariance = moments(oldPhysical, CURRENT_PHYSICAL,
+                VISIBILITY, 0.1, 2).variance();
+        assertTrue(lowFloorVariance > 900.0);
+        assertTrue(higherFloorVariance < 20.0);
+        assertTrue(lowFloorVariance > higherFloorVariance * 20.0);
+    }
+
+    @Test
     void shaderOnlyFloorsOptionalTemporalSelectionNotRenderedContribution() throws IOException {
         String light = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
         String indirect = Files.readString(ROOT.resolve(
@@ -89,14 +101,21 @@ final class RtRestirPositiveSupportOracleTest {
         return target;
     }
 
-    /** Enumerate all 3^4 proposals and both historical reservoir survivors. */
+    private record Moments(double mean, double variance) {}
+
     private static double enumerate(double[] oldPhysical, double[] currentPhysical,
                                     double[] visibility, double floor, int historyM) {
+        return moments(oldPhysical, currentPhysical, visibility, floor, historyM).mean();
+    }
+
+    /** Enumerate all 3^4 proposals and both historical reservoir survivors. */
+    private static Moments moments(double[] oldPhysical, double[] currentPhysical,
+                                   double[] visibility, double floor, int historyM) {
         double[] oldTarget = floored(oldPhysical, floor);
         double[] nowTarget = floored(currentPhysical, floor);
         double[] oldQ = mixture(OLD_LOCAL, OLD_GLOBAL);
         double[] nowQ = mixture(NEW_LOCAL, NEW_GLOBAL);
-        double mean = 0.0, probability = 0.0;
+        double mean = 0.0, secondMoment = 0.0, probability = 0.0;
 
         for (int oldL = 0; oldL < 3; oldL++) {
             for (int oldG = 0; oldG < 3; oldG++) {
@@ -124,8 +143,11 @@ final class RtRestirPositiveSupportOracleTest {
                                 int light = candidate[selected];
                                 double pSelected = weights[selected] / totalWeight;
                                 double normalizedW = totalWeight / (M * nowTarget[light]);
-                                mean += drawProbability * selectedProbability * pSelected
-                                        * normalizedW * currentPhysical[light] * visibility[light];
+                                double output = normalizedW
+                                        * currentPhysical[light] * visibility[light];
+                                double stateWeight = drawProbability * selectedProbability * pSelected;
+                                mean += stateWeight * output;
+                                secondMoment += stateWeight * output * output;
                             }
                         }
                     }
@@ -133,6 +155,6 @@ final class RtRestirPositiveSupportOracleTest {
             }
         }
         assertEquals(1.0, probability, 1e-12);
-        return mean;
+        return new Moments(mean, secondMoment - mean * mean);
     }
 }

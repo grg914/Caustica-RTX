@@ -28,4 +28,6 @@ The independent finite-state test `RtRestirPositiveSupportOracleTest` enumerates
 
 ## Outstanding risks
 
+In the finite-state three-emitter oracle with a formerly zero-target emitter and two historical candidates, the fixed `1e-3` floor restores the mean of 2.775 but yields an estimator variance of approximately **980.74**. A larger illustrative `0.1` floor reduces that variance to approximately **12.92** while retaining the same mean. The fresh-only RIS comparison has variance approximately **3.94**. These numbers describe a mathematical toy model, **not measured GPU FPS or real-image noise**.
+
 The absolute floor `1e-3` is a provisional numerical choice. A small floor can produce **very high variance** when a previously insignificant light becomes important. It may increase histories of zero-contribution samples and affect path time. Do not characterize this as a complete fix for flicker, ghosting, light additions/removals or biased multi-frame reuse. A real RTX/Vulkan acceptance run, frame-variance/1% lows, denoiser tests and a stronger multi-frame oracle remain required. Do not fuse this experimental PR into stable `main` without demonstrating appropriate behavior and preserving all upstream ReSTIR dependencies.

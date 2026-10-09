@@ -68,6 +68,10 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
     // remains active with its full configured candidate count at every hit. Pass A's primary/interface
     // prefix is outside this SSS quality budget.
     int indirectDepth = 0;
+    // Pass A may already have consumed water/glass interfaces (seg.bounce > 0).
+    // Ignore those interfaces and particles: only the first opaque receiver of
+    // this continuation can own the pixel's temporal emitter reservoir.
+    bool firstOpaqueReceiver = true;
     for (int bounce = seg.bounce; bounce <= maxBounces; bounce++) {
         // Radiance SBT records run any-hit only for true alpha cutout. Translucent/water go straight to
         // closest-hit for dielectric handling. Geometry is double-sided; the chit flips the normal.
@@ -309,7 +313,8 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             }
         }
 
-        // RIS direct lighting from block emitters (single-frame only, no temporal reservoir reuse).
+        // RIS direct lighting from block emitters. Optional temporal reuse belongs only
+        // to the first opaque receiver of the base continuation, not to bounce zero.
         // Front lobe + SSS backlighting are resampled together and share ONE shadow ray — a light can
         // only be in front of n or behind it, never both, so combining them into one target function is
         // exact, not an approximation. The SSS term is gated off past MAX_SSS_INDIRECT_DEPTH by passing
@@ -319,9 +324,10 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             PathSampler risSampler = pathSamplerWithGroup(transportSampler, PATH_GROUP_RIS_BASE);
             Reservoir r = risInitial(hitPos, n, v, rd, diffAlb, F0, rough, false, activeSss,
                                      risSampler);
-            // Only the first camera-surface sample owns the pixel history. The
-            // ordinary RIS estimator still handles all other samples/bounces.
-            if (bounce == 0 && pathBranch == 0u && sampleIndex == 0u
+            // The base continuation's first opaque receiver can be at bounce > 0
+            // after water/glass. All later receivers, samples and split branches
+            // retain the baseline RIS estimator.
+            if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u
                     && pc.restirHistoryWriteAddr != 0) {
                 if (pc.restirHistoryReadAddr != 0) {
                     float3 prevSurface = hitPos - float3(payload.motionPrev);
@@ -375,6 +381,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
             L += throughput * shadeReservoir(r, hitPos, n, v, rd, diffAlb, F0, rough, false,
                                              activeSss);
         }
+        firstOpaqueReceiver = false;
 
         // Thin-surface SSS transmission. Light entering from the back face scatters through toward the
         // viewer via a forward-biased HG phase (leaves/grass backlit by the sun glow when you look

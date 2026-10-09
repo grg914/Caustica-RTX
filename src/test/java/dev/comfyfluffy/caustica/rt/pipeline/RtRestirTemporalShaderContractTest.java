@@ -40,10 +40,28 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("prevTarget * prev.sampleNormalWeight.w * effectiveM"));
         assertTrue(shader.contains("reservoirFinalize(r);"));
         assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough);"));
+        assertTrue(shader.contains("if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u"));
+        assertTrue(shader.contains("firstOpaqueReceiver = false;"));
+        assertFalse(shader.contains("if (bounce == 0 && pathBranch == 0u && sampleIndex == 0u"));
         assertTrue(shader.contains("RestirHistory temporalHistory = restirInvalidHistory();"));
         assertFalse(shader.contains("RestirHistory stored ="));
         assertTrue(shader.contains("if (pc.restirHistoryWriteAddr != 0)"));
         assertTrue(shader.contains("L += throughput * shadeReservoir(r,"));
+    }
+
+    @Test
+    void firstOpaqueReceiverAfterPrimaryDielectricPrefixCanWriteHistory() throws IOException {
+        String primary = Files.readString(ROOT.resolve("shaders/pipelines/world/primary.rgen.slang"));
+        String indirect = Files.readString(ROOT.resolve("shaders/pipelines/world/indirect.rgen.slang"));
+
+        // The primary guide pass consumes a glass/water interface before Pass B.
+        assertTrue(primary.contains("seed, bounce + 1,"));
+        assertTrue(primary.contains("return continuation;"));
+        // Pass B must not equate first shaded opaque receiver with bounce zero.
+        assertTrue(indirect.contains("bool firstOpaqueReceiver = true;"));
+        assertTrue(indirect.contains("if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u"));
+        assertTrue(indirect.contains("firstOpaqueReceiver = false;"));
+        assertFalse(indirect.contains("if (bounce == 0 && pathBranch == 0u && sampleIndex == 0u"));
     }
 
     @Test

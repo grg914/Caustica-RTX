@@ -39,6 +39,10 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("dot(previousNormal, n) > 0.95"));
         assertTrue(shader.contains("abs(prevNormalLen2 - 1.0) <= 1.0e-3"));
         assertTrue(shader.contains("abs(curNormalLen2 - 1.0) <= 1.0e-3"));
+        assertTrue(shader.contains("all(abs(prevHit) < float3(1.0e20))"));
+        assertTrue(shader.contains("all(abs(expectedPreviousHit) < float3(1.0e20))"));
+        assertTrue(shader.contains("abs(prev.receiverPosRoughness.w) < 1.0e20"));
+        assertTrue(shader.contains("abs(rough) < 1.0e20"));
         assertTrue(shader.contains("float contributionWeight = restirHistoryCandidateWeight("));
         assertTrue(shader.contains("reservoirFinalize(r);"));
         assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough);"));

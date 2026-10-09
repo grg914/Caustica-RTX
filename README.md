@@ -25,7 +25,7 @@ changes while the renderer is being built.
 - NVIDIA Reflex with Low Latency Boost
 - Capability-gated DLSS Neural Rendering / 3D-Guided Neural Rendering integration
 - RTX-safe Caustica-native post effects (contrast, saturation, vignette, optional sharpen)
-- RTX Performance Mode for lower path-tracing cost before Frame Generation
+- Selectable RTX presets (Custom / Quality / Balanced / Max FPS) for fidelity or lower base-frame ray-tracing cost
 - In-game DLSS, frame-generation, multiplier, Reflex, and menu-suspension controls
 - PsychoV24 and analytical SDR tone mapping
 - Shuffled-scrambled Sobol path and RIS sampling
@@ -64,7 +64,7 @@ changes while the renderer is being built.
 - Frame Generation, its 2x-4x multiplier, Reflex, and Reflex Boost are available in Video Settings.
 - DLSS Neural Rendering settings are exposed in Video Settings, but activation requires a compatible NVIDIA-authorized DLSS-NR/NGX SDK/runtime. Public builds without that SDK report the feature unavailable instead of enabling a fake toggle.
 - Caustica Post FX provides shader-like visual controls without installing Iris/Sodium or replacing Caustica's Vulkan renderer.
-- RTX Performance Mode applies 1 SPP, 2 bounces, 4 RIS candidates, disables ray-traced particles/water waves, and keeps sharpen at zero to improve the real rendered base FPS before MFG.
+- Video Settings includes **RTX Preset**: Quality (1 SPP, 3 bounces, 8 RIS candidates, DLSS-RR Quality), Balanced (1 SPP, 2 bounces, 4 RIS, DLSS-RR Balanced), and Max FPS (1 SPP, 1 bounce, 2 RIS, DLSS-RR Performance). Custom preserves your own settings. The presets do not automatically turn on ReSTIR, Neural Rendering or Frame Generation.
 - 3x and 4x Multi Frame Generation require a supported GeForce RTX 50 Series GPU and driver.
 - HDR output requires an HDR swapchain and a correctly configured HDR display.
 - When HDR is enabled on Linux, Caustica selects GLFW's native Wayland backend automatically. X11/XWayland surfaces generally do not expose the required HDR10/PQ format.
@@ -138,7 +138,7 @@ Not imported because Caustica already replaces them:
 
 This keeps the supplied shader's presentation while preserving Caustica path tracing, DLSS Ray Reconstruction, Neural Rendering integration, Frame Generation/MFG and Reflex. Use the Caustica-adapted ScandiTexture resource pack for textures/celestials; do not stack the legacy Iris shader pipeline on top of Caustica.
 
-**RTX Performance Mode is reversible:** enabling it snapshots the current SPP/bounce/RIS/particles/glow/waves/sharpen settings, applies the low-cost preset, and restores the previous values when disabled in the same session.
+**RTX presets are reversible:** switching from Custom to a preset snapshots the current SPP/bounce/RIS/particles/glow/waves/sharpen/DLSS-RR settings. Returning to Custom during the same session restores them; editing any preset-controlled setting manually switches the saved selection to Custom. After relaunch, the session-only snapshot is unavailable and choosing Custom from a saved preset restores renderer defaults. See [RTX profile tuning and final hardware acceptance](docs/rtx-5060ti-balanced.md).
 
 ### Credits
 

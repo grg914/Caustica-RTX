@@ -246,21 +246,24 @@ public final class RtVideoOptions {
     }
 
     private static OptionInstance<Integer> rtxQualityPreset() {
-        BooleanSetting maxFps = CausticaConfig.Rt.Performance.MODE;
+        BooleanSetting quality = CausticaConfig.Rt.Performance.QUALITY;
         BooleanSetting balanced = CausticaConfig.Rt.Performance.BALANCED;
-        int activePreset = balanced.value() ? 1 : maxFps.value() ? 2 : 0;
+        BooleanSetting maxFps = CausticaConfig.Rt.Performance.MODE;
+        int activePreset = quality.value() ? 1 : balanced.value() ? 2 : maxFps.value() ? 3 : 0;
         return new OptionInstance<>(
             "caustica.options.rt.qualityPreset",
             OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.qualityPreset.tooltip")),
             (caption, position) -> Options.genericValueLabel(caption,
                     Component.translatable("caustica.options.rt.qualityPreset." + position)),
-            new OptionInstance.IntRange(0, 2),
+            new OptionInstance.IntRange(0, 3),
             activePreset,
             position -> {
-                if (position == (balanced.value() ? 1 : maxFps.value() ? 2 : 0)) {
+                int previousPreset = quality.value() ? 1 : balanced.value() ? 2 : maxFps.value() ? 3 : 0;
+                if (position == previousPreset) {
                     return;
                 }
-                if (position != 0 && performanceSnapshot == null) {
+                // Save user tuning only when leaving Custom, not when moving between presets.
+                if (position != 0 && previousPreset == 0 && performanceSnapshot == null) {
                     performanceSnapshot = new PerformanceSnapshot(
                             CausticaConfig.Rt.Composite.SPP.value(),
                             CausticaConfig.Rt.Composite.MAX_BOUNCES.value(),
@@ -271,10 +274,20 @@ public final class RtVideoOptions {
                             CausticaConfig.Rt.PostFx.SHARPEN.value(),
                             CausticaConfig.Rt.DlssRr.QUALITY.value());
                 }
-                balanced.set(position == 1);
-                maxFps.set(position == 2);
+                quality.set(position == 1);
+                balanced.set(position == 2);
+                maxFps.set(position == 3);
                 if (position == 1) {
-                    // Preserve lighting detail and world effects while limiting costly tracing.
+                    // Higher quality without doubling path samples on midrange RTX hardware.
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(3);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(8);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(2); // DLSS-RR Quality
+                } else if (position == 2) {
                     CausticaConfig.Rt.Composite.SPP.set(1);
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(2);
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(4);
@@ -283,7 +296,7 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
                     CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
                     CausticaConfig.Rt.DlssRr.QUALITY.set(1); // DLSS-RR Balanced
-                } else if (position == 2) {
+                } else if (position == 3) {
                     CausticaConfig.Rt.Composite.SPP.set(1);
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(1);
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(2);
@@ -303,7 +316,7 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.DlssRr.QUALITY.set(performanceSnapshot.dlssQuality());
                     performanceSnapshot = null;
                 } else {
-                    // A preset restored from disk has no in-memory custom snapshot.
+                    // A preset loaded from disk has no in-memory Custom snapshot.
                     CausticaConfig.Rt.Composite.SPP.set(CausticaConfig.Rt.Composite.SPP.defaultValue());
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(CausticaConfig.Rt.Composite.MAX_BOUNCES.defaultValue());
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(CausticaConfig.Rt.Lights.RIS_CANDIDATES.defaultValue());
@@ -313,7 +326,7 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.PostFx.SHARPEN.set(CausticaConfig.Rt.PostFx.SHARPEN.defaultValue());
                     CausticaConfig.Rt.DlssRr.QUALITY.set(CausticaConfig.Rt.DlssRr.QUALITY.defaultValue());
                 }
-                // RIS candidate changes alter emitter residency.
+                // Candidate-count changes require the emitter population to be rebuilt.
                 RtTerrain.requestFullClear();
             });
     }

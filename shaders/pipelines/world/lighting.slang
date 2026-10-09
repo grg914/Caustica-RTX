@@ -14,6 +14,9 @@ import trace;
 // and visibility. This prevents zero-target historical support holes in a
 // controlled RIS estimator but does not prove unbiased multi-frame rendering.
 public static const float RESTIR_TEMPORAL_TARGET_FLOOR = 1.0e-3;
+// A single prior reservoir survivor is retained as at most one effective
+// sample, preventing history weight from dominating fresh RIS proposals.
+public static const float RESTIR_TEMPORAL_MAX_EFFECTIVE_M = 1.0;
 
 public float restirSelectionTarget(float physicalTarget) {
     // Fail closed on corrupted light/BSDF evaluations before the positive

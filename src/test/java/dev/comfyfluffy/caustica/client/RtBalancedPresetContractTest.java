@@ -57,6 +57,26 @@ final class RtBalancedPresetContractTest {
     }
 
     @Test
+    void manualChangesConvertPresetToCustomWithoutLosingTheEditedValues() throws IOException {
+        String options = options();
+        int start = options.indexOf("private static void manualPresetOverride()");
+        int end = options.indexOf("private static OptionInstance<Boolean> presetBoolean(", start);
+        assertTrue(start >= 0 && end > start);
+        String manualOverride = options.substring(start, end);
+        assertTrue(manualOverride.contains("Rt.Performance.QUALITY.set(false)"));
+        assertTrue(manualOverride.contains("Rt.Performance.BALANCED.set(false)"));
+        assertTrue(manualOverride.contains("Rt.Performance.MODE.set(false)"));
+        assertTrue(manualOverride.contains("performanceSnapshot = null"));
+        assertTrue(manualOverride.contains("if (setting.value() != value)"));
+        assertTrue(manualOverride.indexOf("setting.set(value)") < manualOverride.indexOf("manualPresetOverride();"));
+        assertTrue(options.contains("return presetBoolean(\"caustica.options.rt.particles\""));
+        assertTrue(options.contains("return presetBoolean(\"caustica.options.rt.waterWaves\""));
+        assertTrue(options.contains("position -> manualPresetInt(setting, steps.get(position))"));
+        assertTrue(options.contains("value -> manualPresetInt(setting, value)"));
+        assertTrue(options.contains("float sharpen = value / 100.0f"));
+    }
+
+    @Test
     void maxFpsAndCustomSettingsStayAvailable() throws IOException {
         String options = options();
         assertTrue(options.contains("new OptionInstance.IntRange(0, 3)"));

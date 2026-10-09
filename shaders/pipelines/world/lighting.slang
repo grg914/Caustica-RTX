@@ -33,6 +33,25 @@ public Reservoir resEmpty() {
     return r;
 }
 
+// Streaming reservoir selection shared by the emitter RIS candidate path.
+// Selection takes a uniform variate in [0,1); the surviving sample is chosen
+// proportionally to its importance weight without emitting visibility rays.
+public void reservoirOffer(inout Reservoir r, float3 pos, float3 lnrm, float3 le, float area,
+                           float target, float weight, float selection) {
+    r.wSum += weight;
+    if (selection * r.wSum < weight) {
+        r.pos = pos;
+        r.lnrm = lnrm;
+        r.le = le;
+        r.area = area;
+        r.phat = target;
+    }
+}
+
+public void reservoirFinalize(inout Reservoir r) {
+    r.W = r.phat > 0.0 && r.M > 0.0 ? r.wSum / (r.M * r.phat) : 0.0;
+}
+
 // Unshadowed contribution of a fixed light sample point at surface (hitPos,n,v); out p-hat = its
 // luminance (the resampling target). Evaluated from the UNBIASED hitPos — SURF_BIAS is applied only to
 // the shadow-ray origin in shadeReservoir, on whichever side the survivor sample lands. Three receiver
@@ -303,18 +322,12 @@ public Reservoir risInitial(float3 hitPos, float3 n, float3 v, float3 rd, float3
         }
         float sourcePdf = proposalPdf(lg, le, gridCell, gridCellCoord, localProbability);
         float w = phat / max(sourcePdf, 1.0e-20);
-        r.wSum += w;
         candidateSampler = pathSamplerWithGroup(risSampler,
                 PATH_GROUP_RIS_CANDIDATE_FIRST + c * 2u);
-        if (pathSample(candidateSampler, PATH_DIM_RIS_REPLACE) * r.wSum < w) { // weighted reservoir update
-            r.pos = sp;
-            r.lnrm = lightNormal;
-            r.le = le;
-            r.area = area;
-            r.phat = phat;
-        }
+        reservoirOffer(r, sp, lightNormal, le, area, phat, w,
+                pathSample(candidateSampler, PATH_DIM_RIS_REPLACE));
     }
-    r.W = r.phat > 0.0 ? (r.wSum / (r.M * r.phat)) : 0.0;
+    reservoirFinalize(r);
     return r;
 }
 

@@ -30,8 +30,21 @@ The selector applies the preset when changed in Video Settings. If a preset-cont
 - **4K:** expect a substantial tracing burden; prefer DLSS-RR Performance or Ultra Performance and lower view distance where necessary. Quality is scene-dependent.
 - The **16 GB** framebuffer improves headroom for textures and acceleration structures, but does not make ray tracing compute-free. Avoid claiming a fixed FPS from GPU VRAM alone.
 
-The draft material-aware ReSTIR history stores 96 bytes per rendering pixel in each of two buffers and retains the existing aggregate 768 MiB allocation cap. Its memory usage depends on the **internal render resolution**, not simply the output resolution. It remains opt-in and is **not enabled by this preset** until Vulkan/RTX correctness, frame time, and visual parity are validated.
+This standalone profile change does **not** include the experimental ReSTIR shader/payload/history changes. No ReSTIR setting is automatically enabled by any preset. GPU memory consumption still varies with internal render resolution, draw distance, world content, textures and acceleration structures.
 
 ## Validation checklist
 
 Benchmark base rendered FPS and GPU frame time, GPU/CPU utilization, 1% lows, VRAM usage, latency with/without Reflex, and optional Frame Generation separately. Check for ghosting, temporal flicker, visual material mismatches, and shader errors. Neither CI compilation nor a green test suite is evidence of verified RTX 5060 Ti runtime performance.
+
+## RTX 5060 Ti hardware acceptance before stable merge
+
+Record your display resolution, render distance, NVIDIA driver version, Caustica JAR commit/hash, active DLSS-RR mode and whether FG/NR are independently enabled. Use the **same world, viewpoint, weather/time and movement route** for all comparisons.
+
+1. **Preset selector and image quality:** switch to Quality, reopen Video Settings, confirm 1 SPP / 3 bounces / 8 RIS / DLSS-RR Quality. Repeat for Balanced (1 / 2 / 4 / Balanced) and Max FPS (1 / 1 / 2 / Performance). Check water, particles, glow and foliage; visually compare reflections, shadows, temporal noise and flicker.
+2. **Custom restoration:** record custom values for all preset-controlled settings. Switch Custom → Quality → Balanced → Max FPS → Custom **without restarting** and verify the original values return.
+3. **Manual overrides:** apply Balanced, reopen settings, manually change bounces or DLSS-RR quality, then reopen again. Confirm the selector displays **Custom**, the new value persists, and other previous settings are not silently restored. Repeat for RIS candidates and particles/water toggles.
+4. **TOML and restart:** close Video Settings and the game normally, inspect `config/caustica.toml`, then relaunch. Verify the selected preset and numeric settings persist. Selecting Custom after a *restart* restores renderer defaults rather than the prior session's transient snapshot; verify this documented behavior.
+5. **Performance and stability:** record average **rendered** FPS, 1% low, median/95th percentile GPU frame time, CPU frame time and peak VRAM for each preset at 1080p or 1440p (plus your actual target resolution). Run at least one demanding scene with many lights, water and entities. Evaluate Frame Generation separately; never treat generated FPS as base render throughput.
+6. **Safety checks:** inspect game logs for NGX/Vulkan errors, unexpected shader warnings or crashes and look for ghosting, shimmering, light leaks and unresponsive controls after changing modes.
+
+Keep this PR draft if any profile fails these checks. Report measured results rather than assuming a particular FPS advantage from the 16 GB VRAM capacity.

@@ -1,27 +1,27 @@
 # RTX 5060 Ti 16 GB — balanced rendering
 
-The optional **RTX 5060 Ti Balanced** preset in Video Settings aims to retain useful lighting detail while reducing tracing cost. It is not an automatic GPU detector or a guaranteed frame-rate target. The **Custom** and **Max FPS** choices remain available.
+The optional RTX presets are a manual four-way selector in Video Settings: **Custom / Quality / Balanced / Max FPS**. They are tuned as starting points for an RTX 5060 Ti 16 GB, not automatic GPU detection or guaranteed frame-rate targets.
 
-| Setting | RTX 5060 Ti Balanced | Max FPS |
-| --- | --- | --- |
-| Path samples per pixel | 1 | 1 |
-| Max path bounces | 2 | 1 |
-| RIS emitter candidates | 4 | 2 |
-| DLSS Ray Reconstruction | Balanced (NGX quality 1) | Performance (NGX quality 0) |
-| Particles, entity glow, water waves | On | Off |
-| Post sharpen | Off (avoid DLSS oversharpening) | Off |
-| Experimental temporal ReSTIR | **Not enabled** | **Not enabled** |
-| Neural Rendering and Frame Generation | **Not changed** | **Not changed** |
+| Setting | Quality | Balanced | Max FPS |
+| --- | --- | --- | --- |
+| Path samples per pixel | 1 | 1 | 1 |
+| Max path bounces | 3 | 2 | 1 |
+| RIS emitter candidates | 8 | 4 | 2 |
+| DLSS Ray Reconstruction | Quality (NGX quality 2) | Balanced (NGX quality 1) | Performance (NGX quality 0) |
+| Particles, entity glow, water waves | On | On | Off |
+| Post sharpen | Off | Off | Off |
+| Experimental temporal ReSTIR | **Not enabled** | **Not enabled** | **Not enabled** |
+| Neural Rendering and Frame Generation | **Not changed** | **Not changed** | **Not changed** |
 
 ## How to apply
 
-1. Open **Options → Video Settings**, choose **RTX Quality Preset → RTX 5060 Ti Balanced**.
+1. Open **Options → Video Settings**, choose **RTX Preset → Balanced** to start, or **Quality** when image fidelity matters more than rendered FPS.
 2. Reopen Video Settings after switching preset to refresh the individual quality-slider positions.
 3. Test movement, foliage, reflective materials, transparent water, and high-emitter-count areas at your actual monitor resolution. Compare **rendered FPS** and frame time (not generated/display FPS).
 4. If the base framerate is too low, first switch **DLSS Quality** to **Performance**. If that is insufficient, choose **Max FPS** or lower render distance. Do not compensate for consistently low base FPS with Multi Frame Generation alone.
 5. To return to custom settings, select **Custom**. Within the same session the prior values are restored. After restarting with a saved preset, Custom restores the renderer defaults instead of a forgotten pre-preset snapshot.
 
-The toggle applies the preset when changed in Video Settings and persists the resulting individual settings to `config/caustica.toml` through the existing save path. Editing only `performance.balanced=true` in TOML does **not** synthesize the other values; use Video Settings or set each numeric option explicitly.
+The toggle applies the preset when changed in Video Settings and persists the resulting individual settings to `config/caustica.toml` through the existing save path. Editing only `performance.quality=true`, `performance.balanced=true` or `performance.enabled=true` in TOML does **not** synthesize the other values; use Video Settings or set each numeric option explicitly. Only one choice can be selected through the UI.
 
 ## Display resolution and VRAM
 

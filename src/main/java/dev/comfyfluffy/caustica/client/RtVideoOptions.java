@@ -49,7 +49,8 @@ public final class RtVideoOptions {
             boolean particles,
             boolean glow,
             boolean waterWaves,
-            float sharpen) {
+            float sharpen,
+            int dlssQuality) {
     }
 
     private static PerformanceSnapshot performanceSnapshot;
@@ -79,7 +80,7 @@ public final class RtVideoOptions {
      */
     public static OptionInstance<?>[] runtimeOptions() {
         List<OptionInstance<?>> options = new ArrayList<>(List.of(
-            rtxPerformanceMode(),
+            rtxQualityPreset(),
             exposureMode(),
             manualEv(),
             exposureLowPercentile(),
@@ -244,27 +245,45 @@ public final class RtVideoOptions {
         return Component.translatable("caustica.options.rt.toneMapper." + name);
     }
 
-    private static OptionInstance<Boolean> rtxPerformanceMode() {
-        BooleanSetting setting = CausticaConfig.Rt.Performance.MODE;
-        return OptionInstance.createBoolean(
-            "caustica.options.rt.performanceMode",
-            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.performanceMode.tooltip")),
-            setting.value(),
-            enabled -> {
-                setting.set(enabled);
-                if (enabled) {
-                    // Treat Performance Mode as a reversible preset rather than destructive settings.
-                    // Save the user's live tuning once, then restore it when the preset is turned off.
-                    if (performanceSnapshot == null) {
-                        performanceSnapshot = new PerformanceSnapshot(
-                                CausticaConfig.Rt.Composite.SPP.value(),
-                                CausticaConfig.Rt.Composite.MAX_BOUNCES.value(),
-                                CausticaConfig.Rt.Lights.RIS_CANDIDATES.value(),
-                                CausticaConfig.Rt.Entities.PARTICLES_ENABLED.value(),
-                                CausticaConfig.Rt.Entities.GLOW_ENABLED.value(),
-                                CausticaConfig.Rt.Composite.WATER_WAVES.value(),
-                                CausticaConfig.Rt.PostFx.SHARPEN.value());
-                    }
+    private static OptionInstance<Integer> rtxQualityPreset() {
+        BooleanSetting maxFps = CausticaConfig.Rt.Performance.MODE;
+        BooleanSetting balanced = CausticaConfig.Rt.Performance.BALANCED;
+        int activePreset = balanced.value() ? 1 : maxFps.value() ? 2 : 0;
+        return new OptionInstance<>(
+            "caustica.options.rt.qualityPreset",
+            OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.qualityPreset.tooltip")),
+            (caption, position) -> Options.genericValueLabel(caption,
+                    Component.translatable("caustica.options.rt.qualityPreset." + position)),
+            new OptionInstance.IntRange(0, 2),
+            activePreset,
+            position -> {
+                if (position == (balanced.value() ? 1 : maxFps.value() ? 2 : 0)) {
+                    return;
+                }
+                if (position != 0 && performanceSnapshot == null) {
+                    performanceSnapshot = new PerformanceSnapshot(
+                            CausticaConfig.Rt.Composite.SPP.value(),
+                            CausticaConfig.Rt.Composite.MAX_BOUNCES.value(),
+                            CausticaConfig.Rt.Lights.RIS_CANDIDATES.value(),
+                            CausticaConfig.Rt.Entities.PARTICLES_ENABLED.value(),
+                            CausticaConfig.Rt.Entities.GLOW_ENABLED.value(),
+                            CausticaConfig.Rt.Composite.WATER_WAVES.value(),
+                            CausticaConfig.Rt.PostFx.SHARPEN.value(),
+                            CausticaConfig.Rt.DlssRr.QUALITY.value());
+                }
+                balanced.set(position == 1);
+                maxFps.set(position == 2);
+                if (position == 1) {
+                    // Preserve lighting detail and world effects while limiting costly tracing.
+                    CausticaConfig.Rt.Composite.SPP.set(1);
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(2);
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(4);
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(1); // DLSS-RR Balanced
+                } else if (position == 2) {
                     CausticaConfig.Rt.Composite.SPP.set(1);
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(1);
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(2);
@@ -272,6 +291,7 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Entities.GLOW_ENABLED.set(false);
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(false);
                     CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(0); // DLSS-RR Performance
                 } else if (performanceSnapshot != null) {
                     CausticaConfig.Rt.Composite.SPP.set(performanceSnapshot.spp());
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(performanceSnapshot.maxBounces());
@@ -280,9 +300,10 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Entities.GLOW_ENABLED.set(performanceSnapshot.glow());
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(performanceSnapshot.waterWaves());
                     CausticaConfig.Rt.PostFx.SHARPEN.set(performanceSnapshot.sharpen());
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(performanceSnapshot.dlssQuality());
                     performanceSnapshot = null;
                 } else {
-                    // Session started with the preset already enabled: fall back to source defaults.
+                    // A preset restored from disk has no in-memory custom snapshot.
                     CausticaConfig.Rt.Composite.SPP.set(CausticaConfig.Rt.Composite.SPP.defaultValue());
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(CausticaConfig.Rt.Composite.MAX_BOUNCES.defaultValue());
                     CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(CausticaConfig.Rt.Lights.RIS_CANDIDATES.defaultValue());
@@ -290,7 +311,9 @@ public final class RtVideoOptions {
                     CausticaConfig.Rt.Entities.GLOW_ENABLED.set(CausticaConfig.Rt.Entities.GLOW_ENABLED.defaultValue());
                     CausticaConfig.Rt.Composite.WATER_WAVES.set(CausticaConfig.Rt.Composite.WATER_WAVES.defaultValue());
                     CausticaConfig.Rt.PostFx.SHARPEN.set(CausticaConfig.Rt.PostFx.SHARPEN.defaultValue());
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(CausticaConfig.Rt.DlssRr.QUALITY.defaultValue());
                 }
+                // RIS candidate changes alter emitter residency.
                 RtTerrain.requestFullClear();
             });
     }

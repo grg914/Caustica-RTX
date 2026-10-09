@@ -37,6 +37,8 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("prevTarget * prev.sampleNormalWeight.w * effectiveM"));
         assertTrue(shader.contains("reservoirFinalize(r);"));
         assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough);"));
+        assertTrue(shader.contains("RestirHistory temporalHistory = restirInvalidHistory();"));
+        assertFalse(shader.contains("RestirHistory stored ="));
         assertTrue(shader.contains("if (pc.restirHistoryWriteAddr != 0)"));
         assertTrue(shader.contains("L += throughput * shadeReservoir(r,"));
     }

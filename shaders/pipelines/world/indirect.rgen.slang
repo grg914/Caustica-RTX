@@ -471,12 +471,12 @@ void main() {
     ConstPtr<PackedPathSegment> queue = ConstPtr<PackedPathSegment>(pc.pathQueueAddr);
     float3 frameRadiance = float3(0.0, 0.0, 0.0);
     uint recordIndex = pixelIndex;
-    RestirHistory stored = restirInvalidHistory();
+    RestirHistory temporalHistory = restirInvalidHistory();
     for (uint leaf = 0u; leaf < MAX_PATH_SEGMENTS; ++leaf) {
         PackedPathSegment packed = queue[recordIndex];
         PathSegment segment = unpackPathSegment(packed);
         for (uint s = 0u; s < spp; ++s) {
-            frameRadiance += tracePath(segment, uint2(pix), s, leaf, stored);
+            frameRadiance += tracePath(segment, uint2(pix), s, leaf, temporalHistory);
         }
         if (packed.nextRecord == PATH_NO_NEXT) {
             break;
@@ -484,7 +484,7 @@ void main() {
         recordIndex = packed.nextRecord;
     }
     if (pc.restirHistoryWriteAddr != 0) {
-        DevicePtr<RestirHistory>(pc.restirHistoryWriteAddr)[pixelIndex] = stored;
+        DevicePtr<RestirHistory>(pc.restirHistoryWriteAddr)[pixelIndex] = temporalHistory;
     }
     // Pre-exposure is applied here and nowhere else: the entire path-traced result above is in absolute
     // scene units, and only the fp16 store is normalized.

@@ -50,6 +50,12 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("abs(prev.receiverPosRoughness.w) < 1.0e20"));
         assertTrue(shader.contains("abs(rough) < 1.0e20"));
         assertTrue(shader.contains("float contributionWeight = restirHistoryCandidateWeight("));
+        assertTrue(shader.contains("float prevSelectionTarget = restirSelectionTarget(prevTarget);"));
+        assertTrue(shader.contains("prev, prevSelectionTarget, RESTIR_TEMPORAL_MAX_EFFECTIVE_M,"));
+        assertFalse(shader.contains("float(worldPush.risCandidates) * 4.0,"));
+        assertTrue(Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"))
+                .contains("RESTIR_TEMPORAL_MAX_EFFECTIVE_M = 1.0;"));
+        assertTrue(shader.contains("prev.samplePosArea.w, prevSelectionTarget, effectiveM,"));
         assertTrue(shader.contains("reservoirFinalize(r);"));
         assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId, proposalCellKey);"));
         assertTrue(shader.contains("all(prev.receiverIdentity.yzw == proposalCellKey)"));
@@ -81,8 +87,8 @@ final class RtRestirTemporalShaderContractTest {
 
         // Analytic one-light case: source PDF 1/4, target 4 gives W=1/q=4.
         // Repeated temporal resampling must preserve the same normalization
-        // even when the prior reservoir candidate count is capped at 4*M.
-        double target = 4.0, initialM = 8.0, cappedHistoryM = 32.0;
+        // even when the old reservoir is limited to one effective candidate.
+        double target = 4.0, initialM = 8.0, cappedHistoryM = 1.0;
         double previousWeight = 4.0;
         double currentSum = initialM * target * previousWeight;
         for (int frame = 0; frame < 120; frame++) {

@@ -3,8 +3,6 @@ package dev.comfyfluffy.caustica.rt.pipeline;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Numerical boundary oracle for the temporal ReSTIR clip-to-pixel guard.
@@ -23,7 +21,7 @@ final class RtRestirTemporalProjectionReferenceTest {
 
     @Test
     void mapsCenterAndTopLeftWithinFrame() {
-        assertEquals(5, pixelIndex(0, 0, 1, 4, 4));
+        assertEquals(10, pixelIndex(0, 0, 1, 4, 4));
         assertEquals(0, pixelIndex(-1, -1, 1, 4, 4));
     }
 

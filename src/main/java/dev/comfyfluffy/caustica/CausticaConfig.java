@@ -63,7 +63,7 @@ public final class CausticaConfig {
             Rt.DlssNr.GLOBAL_TONE, Rt.DlssNr.SKIN_STRUCTURE, Rt.DlssNr.STYLE, Rt.DlssNr.AUTO_MASK,
             Rt.PostFx.ENABLED, Rt.PostFx.SHARPEN, Rt.PostFx.CONTRAST, Rt.PostFx.SATURATION, Rt.PostFx.VIGNETTE,
             Rt.PostFx.SCANDI_SHADER, Rt.PostFx.SCANDI_GRADE_STRENGTH, Rt.PostFx.SCANDI_SHADOW_TINT,
-            Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH, Rt.Performance.MODE, Rt.Performance.BALANCED, Rt.Fg.ENABLED, Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
+            Rt.PostFx.SCANDI_HIGHLIGHT_WARMTH, Rt.Performance.MODE, Rt.Performance.BALANCED, Rt.Performance.QUALITY, Rt.Fg.ENABLED, Rt.Reflex.ENABLED, Rt.Exposure.MODE, Rt.Exposure.LOW_PERCENTILE, Rt.Exposure.HIGH_PERCENTILE,
             Rt.Exposure.PRE_EXPOSURE, Rt.Tonemap.GAMMA,
             Rt.Sdr.TONE_MAPPER, Rt.Hdr.TONE_MAPPER,
             Rt.FrameStats.ENABLED,
@@ -101,8 +101,8 @@ public final class CausticaConfig {
                 " Lightweight Caustica-native post-processing. These effects run in the Caustica pipeline and do not require Iris/Sodium.\n"
                         + " scandi-shader enables the converted ScandiShader DERCODE-style grade without importing incompatible Iris renderer passes.");
         FILE.setComment("performance",
-                " RT quality presets. The Balanced preset targets a practical RTX 5060 Ti quality/performance compromise,\n"
-                        + " while Max FPS retains the most aggressive quality trade-offs. Both are optional.");
+                " RT quality presets for RTX hardware. Quality prioritizes indirect lighting and image detail,\n"
+                        + " Balanced limits trace cost, and Max FPS is the most aggressive. All are optional.");
         FILE.setComment("frame-generation",
                 " DLSS Frame Generation. Requires supported NVIDIA hardware and drivers.\n"
                         + " multi-frame-count sets generated frames per rendered frame (1 = 2x, 2 = 3x, ...).\n"
@@ -758,6 +758,8 @@ public final class CausticaConfig {
                     bool("caustica.rt.performance", "performance.enabled", false);
             public static final BooleanSetting BALANCED =
                     bool("caustica.rt.performanceBalanced", "performance.balanced", false);
+            public static final BooleanSetting QUALITY =
+                    bool("caustica.rt.performanceQuality", "performance.quality", false);
 
             private Performance() {
             }

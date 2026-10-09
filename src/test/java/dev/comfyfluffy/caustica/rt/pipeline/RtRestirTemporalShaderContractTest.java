@@ -128,6 +128,21 @@ final class RtRestirTemporalShaderContractTest {
         assertFalse(host.contains("restirHistoryValid = true; // optimistic"));
     }
 
+    @Test
+    void spatialGeometryHelperIsNotMistakenForEnabledReuse() throws IOException {
+        String lighting = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
+        String indirect = Files.readString(ROOT.resolve("shaders/pipelines/world/indirect.rgen.slang"));
+        assertTrue(lighting.contains("public bool restirSpatialGeometryCompatible("));
+        assertTrue(lighting.contains("abs(centerLengthSq - 1.0) <= 1.0e-3"));
+        assertTrue(lighting.contains("abs(neighborLengthSq - 1.0) <= 1.0e-3"));
+        assertTrue(lighting.contains("separationSq < 0.25 * 0.25"));
+        assertTrue(lighting.contains("dot(receiverNormal, neighborNormal) > 0.95"));
+        assertTrue(lighting.contains("abs(neighbor.receiverPosRoughness.w - receiverRoughness) < 0.15"));
+        // No material/proposal identity is stored in the history yet: the
+        // production raygen must not consume neighbors from this helper alone.
+        assertFalse(indirect.contains("restirSpatialGeometryCompatible("));
+    }
+
     private static int occurrences(String src, String fragment) {
         int count = 0;
         for (int from = 0; (from = src.indexOf(fragment, from)) >= 0; from += fragment.length())

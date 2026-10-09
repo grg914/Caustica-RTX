@@ -21,7 +21,7 @@ The optional RTX presets are a manual four-way selector in Video Settings: **Cus
 4. If the base framerate is too low, first switch **DLSS Quality** to **Performance**. If that is insufficient, choose **Max FPS** or lower render distance. Do not compensate for consistently low base FPS with Multi Frame Generation alone.
 5. To return to custom settings, select **Custom**. Within the same session the prior values are restored. After restarting with a saved preset, Custom restores the renderer defaults instead of a forgotten pre-preset snapshot.
 
-The toggle applies the preset when changed in Video Settings and persists the resulting individual settings to `config/caustica.toml` through the existing save path. Editing only `performance.quality=true`, `performance.balanced=true` or `performance.enabled=true` in TOML does **not** synthesize the other values; use Video Settings or set each numeric option explicitly. Only one choice can be selected through the UI.
+The selector applies the preset when changed in Video Settings. If a preset-controlled option (SPP, bounces, RIS candidates, DLSS-RR quality, particles, water waves or sharpness) is edited manually, the configuration becomes **Custom** and the edited value is kept. Reopen Video Settings to refresh the displayed preset selection and individual sliders. The existing save path persists these values to `config/caustica.toml`. Editing only `performance.quality=true`, `performance.balanced=true` or `performance.enabled=true` in TOML does **not** synthesize the other values; use Video Settings or set each numeric option explicitly. Only one choice can be selected through the UI.
 
 ## Display resolution and VRAM
 

@@ -344,7 +344,14 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                             float3 previousNormal = prev.receiverNormalValid.xyz;
                             float3 prevHit = prev.receiverPosRoughness.xyz;
                             float3 expectedPreviousHit = hitPos - float3(payload.motionPrev);
+                            // Dot products are angular tests only for unit normals.
+                            // Reject invalid history vectors rather than accepting a
+                            // scaled normal whose dot happens to exceed the threshold.
+                            float prevNormalLen2 = dot(previousNormal, previousNormal);
+                            float curNormalLen2 = dot(n, n);
                             if (prev.receiverNormalValid.w > 0.5
+                                    && abs(prevNormalLen2 - 1.0) <= 1.0e-3
+                                    && abs(curNormalLen2 - 1.0) <= 1.0e-3
                                     && distance(prevHit, expectedPreviousHit) < 0.25
                                     && dot(previousNormal, n) > 0.95
                                     && abs(prev.receiverPosRoughness.w - rough) < 0.15) {

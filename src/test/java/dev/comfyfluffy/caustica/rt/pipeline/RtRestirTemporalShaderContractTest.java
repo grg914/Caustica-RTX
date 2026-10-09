@@ -13,13 +13,15 @@ final class RtRestirTemporalShaderContractTest {
     private static final Path ROOT = Path.of(System.getProperty("user.dir"));
 
     @Test
-    void historyLayoutHasFiveFixedFloat4Lanes() throws IOException {
+    void historyLayoutContainsIdentityLaneAndMatchesHostStride() throws IOException {
         String shader = Files.readString(ROOT.resolve("shaders/pipelines/world/lighting.slang"));
         int start = shader.indexOf("public struct RestirHistory {");
         int end = shader.indexOf("}", start);
         assertTrue(start >= 0 && end > start);
         String layout = shader.substring(start, end);
         assertEquals(5, occurrences(layout, "public float4"));
+        assertEquals(1, occurrences(layout, "public uint4"));
+        assertTrue(layout.contains("receiverIdentity"));
         assertTrue(layout.contains("samplePosArea"));
         assertTrue(layout.contains("sampleNormalWeight"));
         assertTrue(layout.contains("sampleEmissionCount"));
@@ -49,7 +51,9 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(shader.contains("abs(rough) < 1.0e20"));
         assertTrue(shader.contains("float contributionWeight = restirHistoryCandidateWeight("));
         assertTrue(shader.contains("reservoirFinalize(r);"));
-        assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough);"));
+        assertTrue(shader.contains("restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId);"));
+        assertTrue(shader.contains("prev.receiverIdentity.x == payload.materialId"));
+        assertTrue(shader.contains("payload.materialId != PAYLOAD_INVALID_MATERIAL_ID"));
         assertTrue(shader.contains("if (firstOpaqueReceiver && pathBranch == 0u && sampleIndex == 0u"));
         assertTrue(shader.contains("firstOpaqueReceiver = false;"));
         assertFalse(shader.contains("if (bounce == 0 && pathBranch == 0u && sampleIndex == 0u"));
@@ -115,7 +119,7 @@ final class RtRestirTemporalShaderContractTest {
         String common = Files.readString(ROOT.resolve("shaders/pipelines/world/world_common.slang"));
 
         assertTrue(config.contains("lights.restir-di\", false)"));
-        assertTrue(host.contains("RESTIR_HISTORY_STRIDE_BYTES = 80L"));
+        assertTrue(host.contains("RESTIR_HISTORY_STRIDE_BYTES = 96L"));
         assertTrue(host.contains("RESTIR_HISTORY_MEMORY_BUDGET = 768L"));
         assertTrue(host.contains("restirLastLightGeneration == terrain.lightGeneration()"));
         assertTrue(host.contains("restirLastMaterialEpoch == RtMaterialRegistry.INSTANCE.epoch()"));
@@ -148,7 +152,7 @@ final class RtRestirTemporalShaderContractTest {
         assertTrue(lighting.contains("separationSq < 0.25 * 0.25"));
         assertTrue(lighting.contains("dot(receiverNormal, neighborNormal) > 0.95"));
         assertTrue(lighting.contains("abs(neighbor.receiverPosRoughness.w - receiverRoughness) < 0.15"));
-        // No material/proposal identity is stored in the history yet: the
+        // Material identity is stored, but proposal identity/MIS is still missing: the
         // production raygen must not consume neighbors from this helper alone.
         assertFalse(indirect.contains("restirSpatialGeometryCompatible("));
     }

@@ -354,6 +354,8 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                             float prevNormalLen2 = dot(previousNormal, previousNormal);
                             float curNormalLen2 = dot(n, n);
                             if (prev.receiverNormalValid.w > 0.5
+                                    && payload.materialId != PAYLOAD_INVALID_MATERIAL_ID
+                                    && prev.receiverIdentity.x == payload.materialId
                                     && all(abs(prevHit) < float3(1.0e20))
                                     && all(abs(expectedPreviousHit) < float3(1.0e20))
                                     && abs(prev.receiverPosRoughness.w) < 1.0e20
@@ -390,7 +392,7 @@ public float3 tracePath(PathSegment seg, uint2 pix, uint sampleIndex, uint pathB
                         }
                     }
                 }
-                restirForPixel = restirStore(r, hitPos, n, rough);
+                restirForPixel = restirStore(r, hitPos, n, rough, payload.materialId);
             }
             L += throughput * shadeReservoir(r, hitPos, n, v, rd, diffAlb, F0, rough, false,
                                              activeSss);

@@ -17,16 +17,33 @@ final class RtReservoirShaderContractTest {
     void weightedReservoirRetainsOriginalRisEstimatorAndOneVisibilityRay() throws IOException {
         String source = Files.readString(LIGHTING).replaceAll("\\s+", " ");
 
-        assertTrue(source.contains("r.M = float(candidateCount);"));
+        assertTrue(source.contains("r.M += candidateM;"));
+        assertTrue(source.contains("r.M += 1.0;"));
+        assertFalse(source.contains("r.M = float(candidateCount);"));
         assertTrue(source.contains("r.wSum += weight;"));
         assertTrue(source.contains("if (selection * r.wSum < weight)"));
         assertTrue(source.contains("r.phat = target;"));
         assertTrue(source.contains("r.W = r.phat > 0.0 && r.M > 0.0 ? r.wSum / (r.M * r.phat) : 0.0;"));
-        assertTrue(source.contains("reservoirOffer(r, sp, lightNormal, le, area, phat, w,"));
+        assertTrue(source.contains("reservoirOffer(r, sp, lightNormal, le, area, phat, 1.0, w,"));
         assertTrue(source.contains("reservoirFinalize(r);"));
         assertTrue(source.contains("float w = phat / max(sourcePdf, 1.0e-20);"));
         assertEquals(1, occurrences(source, "VisibilityResult shadow = visibility(origin, toL / dist"));
         assertFalse(source.contains("r.W = r.phat > 0.0 ?"));
+    }
+
+    @Test
+    void zeroWeightCandidatesStillCountTowardNormalization() {
+        double count = 0, sumWeights = 0, target = 0;
+        double[] targets = {2, 0, 0, 0};
+        double[] pdf = {0.5, 1, 1, 1};
+        for (int i = 0; i < targets.length; i++) {
+            count += 1;
+            if (targets[i] <= 0) continue;
+            sumWeights += targets[i] / pdf[i];
+            target = targets[i];
+        }
+        assertEquals(4, count, 0);
+        assertEquals(0.5, sumWeights / (count * target), 1e-10);
     }
 
     @Test

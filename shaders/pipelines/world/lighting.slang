@@ -37,7 +37,8 @@ public Reservoir resEmpty() {
 // Selection takes a uniform variate in [0,1); the surviving sample is chosen
 // proportionally to its importance weight without emitting visibility rays.
 public void reservoirOffer(inout Reservoir r, float3 pos, float3 lnrm, float3 le, float area,
-                           float target, float weight, float selection) {
+                           float target, float candidateM, float weight, float selection) {
+    r.M += candidateM;
     r.wSum += weight;
     if (selection * r.wSum < weight) {
         r.pos = pos;
@@ -273,7 +274,9 @@ public Reservoir risInitial(float3 hitPos, float3 n, float3 v, float3 rd, float3
     }
     bool hasGridCell = findLightGridCell(gridLookup, gridCell, gridCellCoord);
     uint candidateCount = worldPush.risCandidates;
-    r.M = float(candidateCount);
+    // Each proposal, including a zero-target proposal, contributes one to the
+    // effective sample count. This permits the same estimator to merge weighted
+    // groups of candidates without assuming that all groups have M=1.
     // Deterministically stratify the proposal mixture. At M=8 this schedules exactly six
     // local and two global candidates, with every lane taking the same branch for a given candidate.
     // Counts that are not divisible by four use the nearest practical split with at least one global
@@ -318,13 +321,14 @@ public Reservoir risInitial(float3 hitPos, float3 n, float3 v, float3 rd, float3
         evalSampleContrib(sp, lightNormal, le, area, hitPos, n, v, rd,
                 diffAlb, F0, rough, twoSided, sss, phat);
         if (phat <= 0.0) {
+            r.M += 1.0;
             continue;
         }
         float sourcePdf = proposalPdf(lg, le, gridCell, gridCellCoord, localProbability);
         float w = phat / max(sourcePdf, 1.0e-20);
         candidateSampler = pathSamplerWithGroup(risSampler,
                 PATH_GROUP_RIS_CANDIDATE_FIRST + c * 2u);
-        reservoirOffer(r, sp, lightNormal, le, area, phat, w,
+        reservoirOffer(r, sp, lightNormal, le, area, phat, 1.0, w,
                 pathSample(candidateSampler, PATH_DIM_RIS_REPLACE));
     }
     reservoirFinalize(r);

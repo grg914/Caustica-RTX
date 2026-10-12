@@ -603,7 +603,10 @@ NGX_SHIM_EXPORT int ngxshim_evaluate_dlssnr(
     eval.InGlobalToneStrength = globalTone;
     eval.InSkinStructureStrength = skinStructure;
     eval.InStyle = (unsigned int) style;
-    eval.InUseAutoMask = autoMask ? 1 : 0;
+    // No pInControlMask resource exists in this ABI yet. A disabled auto-mask would
+    // send an invalid guide combination to DLSS-NR; fail safe until LabPBR masks exist.
+    (void) autoMask;
+    eval.InUseAutoMask = 1;
     eval.InMVecScaleX = mvScaleX;
     eval.InMVecScaleY = mvScaleY;
     eval.InDepthInverted = depthInverted ? 1 : 0;

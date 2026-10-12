@@ -13,7 +13,7 @@ import java.util.Locale;
 /** Non-blocking Vulkan timestamp ring used only while frame statistics are enabled. */
 final class RtGpuTimings {
     private static final String[] STAGES = {
-            "setup", "primary", "indirect", "denoise", "exposure", "bloom", "display", "copy"
+            "setup", "primary", "indirect", "denoise", "exposure", "bloom", "display", "neuralRendering", "copy"
     };
     private static final int SLOT_COUNT = 8;
     private static final int QUERY_COUNT = STAGES.length + 1;

@@ -251,6 +251,7 @@ public final class RtVideoOptions {
         CausticaConfig.Rt.Performance.QUALITY.set(false);
         CausticaConfig.Rt.Performance.BALANCED.set(false);
         CausticaConfig.Rt.Performance.MODE.set(false);
+        CausticaConfig.Rt.Performance.ULTRA_QUALITY.set(false);
         performanceSnapshot = null;
     }
 
@@ -278,16 +279,19 @@ public final class RtVideoOptions {
         BooleanSetting quality = CausticaConfig.Rt.Performance.QUALITY;
         BooleanSetting balanced = CausticaConfig.Rt.Performance.BALANCED;
         BooleanSetting maxFps = CausticaConfig.Rt.Performance.MODE;
-        int activePreset = quality.value() ? 1 : balanced.value() ? 2 : maxFps.value() ? 3 : 0;
+        BooleanSetting ultra = CausticaConfig.Rt.Performance.ULTRA_QUALITY;
+        int activePreset = ultra.value() ? 4 : quality.value() ? 1 : balanced.value() ? 2
+                : maxFps.value() ? 3 : 0;
         return new OptionInstance<>(
             "caustica.options.rt.qualityPreset",
             OptionInstance.cachedConstantTooltip(Component.translatable("caustica.options.rt.qualityPreset.tooltip")),
             (caption, position) -> Options.genericValueLabel(caption,
                     Component.translatable("caustica.options.rt.qualityPreset." + position)),
-            new OptionInstance.IntRange(0, 3),
+            new OptionInstance.IntRange(0, 4),
             activePreset,
             position -> {
-                int previousPreset = quality.value() ? 1 : balanced.value() ? 2 : maxFps.value() ? 3 : 0;
+                int previousPreset = ultra.value() ? 4 : quality.value() ? 1 : balanced.value() ? 2
+                        : maxFps.value() ? 3 : 0;
                 int previousRisCandidates = CausticaConfig.Rt.Lights.RIS_CANDIDATES.value();
                 if (position == previousPreset) {
                     return;
@@ -307,34 +311,19 @@ public final class RtVideoOptions {
                 quality.set(position == 1);
                 balanced.set(position == 2);
                 maxFps.set(position == 3);
-                if (position == 1) {
-                    // Higher quality without doubling path samples on midrange RTX hardware.
-                    CausticaConfig.Rt.Composite.SPP.set(1);
-                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(3);
-                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(8);
-                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
-                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
-                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
-                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
-                    CausticaConfig.Rt.DlssRr.QUALITY.set(2); // DLSS-RR Quality
-                } else if (position == 2) {
-                    CausticaConfig.Rt.Composite.SPP.set(1);
-                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(2);
-                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(4);
-                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(true);
-                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(true);
-                    CausticaConfig.Rt.Composite.WATER_WAVES.set(true);
-                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
-                    CausticaConfig.Rt.DlssRr.QUALITY.set(1); // DLSS-RR Balanced
-                } else if (position == 3) {
-                    CausticaConfig.Rt.Composite.SPP.set(1);
-                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(1);
-                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(2);
-                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(false);
-                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(false);
-                    CausticaConfig.Rt.Composite.WATER_WAVES.set(false);
-                    CausticaConfig.Rt.PostFx.SHARPEN.set(0.0f);
-                    CausticaConfig.Rt.DlssRr.QUALITY.set(0); // DLSS-RR Performance
+                ultra.set(position == 4);
+                RtQualityProfile profile = RtQualityProfile.forSelection(position);
+                if (profile != null) {
+                    // Keep existing preset behavior in one independently testable definition.
+                    // DLSS-NR, FG, ReSTIR, render distance and texture fidelity stay untouched.
+                    CausticaConfig.Rt.Composite.SPP.set(profile.spp());
+                    CausticaConfig.Rt.Composite.MAX_BOUNCES.set(profile.maxBounces());
+                    CausticaConfig.Rt.Lights.RIS_CANDIDATES.set(profile.risCandidates());
+                    CausticaConfig.Rt.Entities.PARTICLES_ENABLED.set(profile.particles());
+                    CausticaConfig.Rt.Entities.GLOW_ENABLED.set(profile.glow());
+                    CausticaConfig.Rt.Composite.WATER_WAVES.set(profile.waterWaves());
+                    CausticaConfig.Rt.PostFx.SHARPEN.set(profile.sharpen());
+                    CausticaConfig.Rt.DlssRr.QUALITY.set(profile.dlssQuality());
                 } else if (performanceSnapshot != null) {
                     CausticaConfig.Rt.Composite.SPP.set(performanceSnapshot.spp());
                     CausticaConfig.Rt.Composite.MAX_BOUNCES.set(performanceSnapshot.maxBounces());

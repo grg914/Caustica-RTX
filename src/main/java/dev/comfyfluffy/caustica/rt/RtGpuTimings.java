@@ -8,6 +8,7 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkQueryPoolCreateInfo;
 
 import java.nio.LongBuffer;
+import java.util.Arrays;
 import java.util.Locale;
 
 /** Non-blocking Vulkan timestamp ring used only while frame statistics are enabled. */
@@ -23,6 +24,8 @@ final class RtGpuTimings {
     private final long queryPool;
     private final boolean[] pending = new boolean[SLOT_COUNT];
     private final double[] accumulatedMs = new double[STAGES.length];
+    private final double[][] stageSamplesMs = new double[STAGES.length][LOG_EVERY];
+    private final double[] frameSamplesMs = new double[LOG_EVERY];
     private int cursor;
     private int samples;
 
@@ -79,10 +82,15 @@ final class RtGpuTimings {
                     continue;
                 }
                 double nanosPerTick = ctx.timestampPeriodNanos();
+                double frameMs = 0.0;
                 for (int stage = 0; stage < STAGES.length; stage++) {
                     long ticks = result.get((stage + 1) * 2) - result.get(stage * 2);
-                    accumulatedMs[stage] += ticks * nanosPerTick / 1_000_000.0;
+                    double durationMs = ticks * nanosPerTick / 1_000_000.0;
+                    accumulatedMs[stage] += durationMs;
+                    stageSamplesMs[stage][samples] = durationMs;
+                    frameMs += durationMs;
                 }
+                frameSamplesMs[samples] = frameMs;
                 pending[slot] = false;
                 samples++;
                 if (samples == LOG_EVERY) {
@@ -99,12 +107,24 @@ final class RtGpuTimings {
             double average = accumulatedMs[i] / samples;
             total += average;
             line.append(' ').append(STAGES[i]).append('=')
-                    .append(String.format(Locale.ROOT, "%.3fms", average));
+                    .append(String.format(Locale.ROOT, "%.3fms p95=%.3fms",
+                            average, percentile95(stageSamplesMs[i], samples)));
             accumulatedMs[i] = 0.0;
         }
-        line.append(" total=").append(String.format(Locale.ROOT, "%.3fms", total));
+        line.append(" total=").append(String.format(Locale.ROOT, "%.3fms p95=%.3fms",
+                total, percentile95(frameSamplesMs, samples)));
+        // Only the traced composite is captured, not separate MFG presentations.
         samples = 0;
         CausticaMod.LOGGER.info(line.toString());
+    }
+
+    static double percentile95(double[] durations, int count) {
+        if (count <= 0 || count > durations.length) {
+            throw new IllegalArgumentException("Invalid GPU sample count: " + count);
+        }
+        double[] sorted = Arrays.copyOf(durations, count);
+        Arrays.sort(sorted);
+        return sorted[(int) Math.ceil(count * 0.95) - 1];
     }
 
     void destroy() {

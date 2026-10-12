@@ -70,11 +70,13 @@ final class CausticaConfigTest {
     }
 
     @Test
-    void rtxQualityBalancedAndMaxFpsPresetsAreOptIn() {
+    void rtxUltraQualityBalancedAndMaxFpsPresetsAreOptIn() {
         CausticaConfig.ensureRegistered();
         assertFalse(CausticaConfig.Rt.Performance.QUALITY.defaultValue());
         assertFalse(CausticaConfig.Rt.Performance.BALANCED.defaultValue());
         assertFalse(CausticaConfig.Rt.Performance.MODE.defaultValue());
+        assertFalse(CausticaConfig.Rt.Performance.ULTRA_QUALITY.defaultValue());
+        assertTrue(hasSetting("caustica.rt.performanceUltraQuality"));
         assertTrue(hasSetting("caustica.rt.performanceQuality"));
         assertTrue(hasSetting("caustica.rt.performanceBalanced"));
         assertTrue(hasSetting("caustica.rt.performance"));

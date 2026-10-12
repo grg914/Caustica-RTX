@@ -1386,26 +1386,9 @@ public final class RtComposite {
             hdrWrittenThisFrame = CausticaConfig.Rt.Hdr.enabled();
             VulkanCommandEncoder.memoryBarrier(cmd, stack); // display output visible to NR/debug
 
-            // DLSS Neural Rendering is a display-referred enhancement pass. It consumes the
-            // tonemapped SDR image plus the existing depth/motion guide buffers, and runs before
-            // the UI/Frame-Generation path. Unsupported SDK/runtime builds return false here and
-            // leave displayImage untouched.
-            if (debugView == 0 && RtDlssNr.INSTANCE.evaluate(
-                    cmd.address(), displayImage, gDepth, gMotion,
-                    renderW, renderH, displayW, displayH)) {
-                VulkanCommandEncoder.memoryBarrier(cmd, stack);
-                RtImage nrOutput = RtDlssNr.INSTANCE.output();
-                if (nrOutput != null) {
-                    blitNrOutput(cmd, stack, nrOutput, displayImage);
-                    VulkanCommandEncoder.memoryBarrier(cmd, stack);
-                }
-            }
-
             if (debugView != 0) {
-                // Debug content is composited only after the real scene has completed trace, RR/fallback,
-                // exposure, and display mapping. It therefore observes the renderer without perturbing
-                // exposure history or feeding literal diagnostic colors through ACES. Debug presentation
-                // remains SDR for now; a PQ swapchain uses the existing SDR->PQ conversion path.
+                // Debug content is composited only after trace, RR/fallback, exposure and
+                // display mapping. The NR effect never operates on debug views.
                 try (RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "debug present");
                      RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.debugPresent")) {
                     debugPresentPipeline.dispatch(cmd, displayW, displayH, debugView,
@@ -1413,9 +1396,28 @@ public final class RtComposite {
                             CausticaConfig.Rt.Exposure.CENTER_WEIGHT_FLOOR.value());
                 }
                 hdrWrittenThisFrame = false;
+                VulkanCommandEncoder.memoryBarrier(cmd, stack);
             }
-            VulkanCommandEncoder.memoryBarrier(cmd, stack);
             if (gpuFrame != null) gpuFrame.finish("display");
+
+            // DLSS-NR receives tonemapped SDR and the native depth/motion guides. Keep
+            // this pass separately timestamped: MFG output FPS is not its actual GPU cost.
+            // Unsupported SDK/runtime builds must leave displayImage unchanged.
+            if (debugView == 0) {
+                try (RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.dlssNr")) {
+                    if (RtDlssNr.INSTANCE.evaluate(
+                            cmd.address(), displayImage, gDepth, gMotion,
+                            renderW, renderH, displayW, displayH)) {
+                        VulkanCommandEncoder.memoryBarrier(cmd, stack);
+                        RtImage nrOutput = RtDlssNr.INSTANCE.output();
+                        if (nrOutput != null) {
+                            blitNrOutput(cmd, stack, nrOutput, displayImage);
+                            VulkanCommandEncoder.memoryBarrier(cmd, stack);
+                        }
+                    }
+                }
+            }
+            if (gpuFrame != null) gpuFrame.finish("neuralRendering");
 
             try (RtDebugLabels.Scope ignored = RtDebugLabels.scope(ctx, cmd, "copy composite to main target");
                  RtFrameStats.Scope ignoredStats = RtFrameStats.FRAME.stage("frame.copyOutput")) {

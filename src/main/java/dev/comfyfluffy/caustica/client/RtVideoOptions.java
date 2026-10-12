@@ -101,7 +101,7 @@ public final class RtVideoOptions {
             dlssNrGlobalTone(),
             dlssNrSkinStructure(),
             dlssNrStyle(),
-            dlssNrAutoMask(),
+            // Manual NR material masks have no GPU guide buffer yet; hide this inoperative setting.
             scandiShaderPreset(),
             scandiGradeStrength(),
             scandiShadowTint(),

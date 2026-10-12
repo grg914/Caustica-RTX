@@ -30,6 +30,7 @@ public final class RtDlssNr {
     private boolean available;
     private boolean failed;
     private boolean resetHistory = true;
+    private boolean loggedActive;
     private int width = -1;
     private int height = -1;
 
@@ -57,13 +58,20 @@ public final class RtDlssNr {
         if (probed || failed) {
             return;
         }
-        probed = true;
         try {
-            if (!(((GpuDeviceAccessor) RenderSystem.getDevice()).caustica$getBackend() instanceof VulkanDevice device)) {
+            // The settings screen may be constructed before Vulkan/NGX is initialized.
+            // Do not permanently cache "unavailable" until a real NGX probe has run.
+            if (!(RenderSystem.getDevice() instanceof GpuDeviceAccessor accessor)
+                    || !(accessor.caustica$getBackend() instanceof VulkanDevice device)) {
                 return;
             }
-            lib = NgxRuntime.INSTANCE.acquire(device);
-            if (lib == null || !lib.hasDlssNr()) {
+            NgxLibrary candidate = NgxRuntime.INSTANCE.acquire(device);
+            if (candidate == null) {
+                return;
+            }
+            lib = candidate;
+            probed = true;
+            if (!lib.hasDlssNr()) {
                 CausticaMod.LOGGER.info("DLSS Neural Rendering available: false (optional shim ABI absent)");
                 return;
             }
@@ -147,13 +155,20 @@ public final class RtDlssNr {
                     CausticaConfig.Rt.DlssNr.GLOBAL_TONE.value(),
                     CausticaConfig.Rt.DlssNr.SKIN_STRUCTURE.value(),
                     CausticaConfig.Rt.DlssNr.STYLE.value(),
-                    CausticaConfig.Rt.DlssNr.AUTO_MASK.value() ? 1 : 0);
+                    // Until a native per-material control-mask buffer exists, auto-mask is required.
+                    1);
 
-            resetHistory = false;
             if (NgxRuntime.ngxFailed(rc)) {
                 throw new IllegalStateException(
                         "ngxshim_evaluate_dlssnr failed: 0x" + Integer.toHexString(rc)
                                 + " last=0x" + Integer.toHexString(lib.lastResult()));
+            }
+            resetHistory = false;
+            if (!loggedActive) {
+                loggedActive = true;
+                CausticaMod.LOGGER.info(
+                        "DLSS Neural Rendering first native evaluation succeeded: {}x{}",
+                        displayWidth, displayHeight);
             }
             return true;
         } catch (Throwable t) {
@@ -174,6 +189,7 @@ public final class RtDlssNr {
         probed = false;
         available = false;
         failed = false;
+        loggedActive = false;
     }
 
     private void destroyFeature() {
